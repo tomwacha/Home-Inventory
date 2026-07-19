@@ -1,0 +1,32 @@
+# --- Sensitive Firebase & Environment Keys ---
+.env
+.env.local
+.env.development
+.env.production
+google-services.json
+GoogleService-Info.plist
+
+# --- React Native & Node Dependencies ---
+node_modules/
+.expo/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- Android Build Files ---
+android/app/build/
+android/.gradle/
+android/local.properties
+*.keystore
+*.jks
+
+# --- iOS Build Files ---
+ios/Pods/
+ios/build/
+ios/DerivedData/
+*.xcworkspace/
+*.xcodeproj/project.xcworkspace/
+
+# --- Operating Systems ---
+.DS_Store
+Thumbs.db
