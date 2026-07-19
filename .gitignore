@@ -3,6 +3,7 @@
 .env.local
 .env.development
 .env.production
+.env*.local
 
 # Dependencies
 node_modules/
@@ -31,6 +32,13 @@ expo-env.d.ts
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+
+# Test coverage
+coverage/
+
+# IDE / editors
+.idea/
+*.iml
 
 # macOS / Windows
 .DS_Store
