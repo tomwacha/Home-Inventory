@@ -36,13 +36,16 @@ You are an elite, patient engineering mentor. I am a beginner. Teach me "why" th
 
 # Tech Stack Guidelines
 
-## 1. TypeScript & React Native (Expo Router)
-- **Strict Typing**: Always enforce explicit types. Avoid using `any`.
-- **Functional Components**: Use arrow functions (`const App = () => {}`) and modern hooks.
+## 1. Local-First & Expo Modules
 - **Expo Router**: Follow folder-based routing inside the `app/` directory. Use `<Link>` for navigation.
-- **Styling**: Use `StyleSheet.create()` for styling. Keep styles separated at the bottom of the file or use inline styles only for dynamic values.
+- **Strict Typing**: Always enforce explicit TypeScript types. Avoid using `any`.
+- **Local Utilities Only**: Zero Firebase dependencies. Use native Expo modules for local-first architecture:
+  - `expo-image-picker` for camera and photo downscaling
+  - `expo-file-system` & `expo-sqlite` (or SecureStore) for persistent offline item storage
+  - `expo-print` & `expo-sharing` for local HTML-to-PDF generation and sharing sheets
+- **Styling**: Use `StyleSheet.create()` for styling. Keep styles separated at the bottom of the file.
 
-## 2. Firebase & Backend
-- **Safe Keys**: Remind me to use `.env` if I accidentally expose secrets.
-- **Firebase v10+ (Modular SDK)**: Always use modern functional imports (e.g., `import { getAuth } from 'firebase/auth'`). Do not use the legacy `firebase.auth()` syntax.
-- **Async/Await**: Use clean `try/catch` blocks for all asynchronous Firebase database and auth calls.
+## 2. Cloud Sync Layer (Google Apps Script API)
+- **Fetch API**: Use standard JavaScript `fetch()` network requests to talk to the Google Apps Script Web App URL endpoint.
+- **Data Packages**: Handle image uploads strictly by converting downscaled local images into compact `Base64` strings before sending them in JSON payloads.
+- **Async/Await**: Use clean `try/catch` blocks for all network requests and local disk read/writes.

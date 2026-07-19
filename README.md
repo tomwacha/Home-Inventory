@@ -1,82 +1,85 @@
-# Home-Inventory
+# Home Inventory
 
-A simple app that allows you to quickly inventory home possessions for insurance claims. 
+A local-first mobile app for cataloging home possessions for insurance claims. Built with **Expo SDK 54**, **TypeScript**, and **Expo Router** for Android.
 
-## Badges:
+Data lives on your device (SQLite + local image files). Cloud backup uses your own **Google Sheet** and **Google Drive** via a lightweight **Google Apps Script** gateway — no Firebase required.
 
-Show real-time context like build status, test coverage, and current version numbers.
+See [Home-Inventory-Product-Brief.md](Home-Inventory-Product-Brief.md) for full product requirements.
 
-## Table of Contents:
+## Features (planned)
 
-Guide your reader through longer documents to maximize scannability.
-
-## Visual Representation:
-
-Embed a compressed GIF, video demo, or diagram to visually prove your app works.
-
-## Features List:
-
-- Modern UI built with React Native and TypeScript
-- Real-time database and authentication powered by Firebase
+- Multi-house inventory with rooms and items
+- Camera capture with automatic image downscaling
+- 100% offline CRUD on Android
+- PDF and CSV export via the system share sheet
+- Two-way sync to Google Sheets + Drive (Milestone 3)
 
 ## Prerequisites
 
-Before running the project, ensure you have the following installed:
+- [Node.js](https://nodejs.org) v18 or higher
+- [Android Studio](https://developer.android.com/studio) (emulator) or a physical Android device
+- [Expo Go](https://expo.dev/go) for quick testing, or a [development build](https://docs.expo.dev/develop/development-builds/introduction/) for native modules (SQLite, file system)
 
-- [Node.js](https://nodejs.org) (v18 or higher recommended)
-- [Watchman](https://github.io) (for Mac users)
-- Firebase Account
-
-
-
-## Installation & Setup
+## Installation
 
 1. **Clone the repository:**
-  ```bash
-   git clone https://github.com
-   cd YOUR_REPO_NAME
-  ```
+
+   ```bash
+   git clone https://github.com/YOUR_USERNAME/Home-Inventory.git
+   cd Home-Inventory
+   ```
+
 2. **Install dependencies:**
-  ```bash
+
+   ```bash
    npm install
-   # or yarn install
-  ```
-3. **Configure Firebase:**
-  - Create a project in the Firebase Console.
-  - Add an iOS/Android app to get your configuration.
-  - Create a `.env` file in the root directory and add your keys (see `.env.example`).
-4. **Start the application:**
-  ```bash
-   npm start
-   # or npx expo start
-  ```
+   ```
 
+3. **Configure environment (optional for Milestone 1):**
 
+   Copy `.env.example` to `.env` and add your Google Apps Script Web App URL when cloud sync is ready (Milestone 3):
 
-## Usage Examples:
+   ```bash
+   cp .env.example .env
+   ```
 
-Share short, copy-paste-friendly code snippets or CLI inputs that show immediate utility.
+4. **Start the dev server:**
 
-## Tech Stack:
+   ```bash
+   npx expo start
+   ```
 
-- **Frontend:** React Native (Expo / CLI)
-- **Language:** TypeScript
-- **Backend/Database:** Firebase
+   Press `a` to open on Android emulator, or scan the QR code with Expo Go.
 
+## Android development build
 
+Native modules (`expo-sqlite`, `expo-file-system`, etc.) require a development build:
 
-## Contribution Instructions:
+```bash
+npx expo run:android
+```
 
-Outline rules for reporting bugs, submitting PRs, or link to a separate CONTRIBUTING.md.
+## Project structure
 
-## Support Channels:
+```
+app/              Expo Router screens (file-based navigation)
+components/       Shared UI (AppHeader, themed primitives)
+constants/        Colors and app-wide tokens
+assets/           App icons and splash images
+```
 
-Instruct users where to go for help, such as GitHub Discussions or Discord links.
+## Tech stack
 
-## License:
+| Layer | Technology |
+|-------|------------|
+| UI | React Native + Expo (managed workflow) |
+| Language | TypeScript (strict) |
+| Navigation | Expo Router |
+| Local storage | expo-sqlite + expo-file-system |
+| Images | expo-image-picker + expo-image-manipulator |
+| Export | expo-print (PDF) + expo-sharing |
+| Cloud sync | Google Apps Script → Sheets + Drive |
 
-Protect your code by displaying the SPDX identifier and linking directly to your local file.
+## License
 
-## Acknowledgments:
-
-Credit any open-source tools, creators, or inspiration that helped build the code.
+See [LICENSE.md](LICENSE.md).
