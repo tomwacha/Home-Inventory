@@ -1,0 +1,13 @@
+---
+description: Cloud sync via Google Apps Script — fetch, Base64 images, try/catch; no secrets in code.
+alwaysApply: true
+---
+
+# Cloud Sync (Google Apps Script)
+
+- Talk to the Web App with standard `fetch()` only — no Firebase or extra Google client SDKs in the app.
+- One shared Sheet + one Drive folder; distinguish houses with a `house_name` (or equivalent) column — not one Sheet per house.
+- Image uploads: downscale locally, then send compact **Base64** strings in JSON payloads (never upload huge raw camera files).
+- Wrap network and disk I/O in `async`/`await` with clear `try/catch`.
+- Read Web App URL / folder id from env or in-app settings — never hardcode live values (see secrets rule).
+- Keep client contract aligned with `gas/Code.gs` and `types/gasSync.ts` when those files exist.

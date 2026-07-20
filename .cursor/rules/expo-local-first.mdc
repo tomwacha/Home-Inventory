@@ -1,0 +1,15 @@
+---
+description: Local-first Expo stack — Router, SQLite, images, export, StyleSheet; no Firebase.
+alwaysApply: true
+---
+
+# Local-First Expo Stack
+
+- **Expo Router**: Folder-based routes under `app/`. Prefer `<Link>` (or typed `router` when `Link` is awkward).
+- **Strict Typing**: Explicit TypeScript types everywhere; avoid `any`.
+- **No Firebase**: Persistence and media stay local with Expo modules:
+  - `expo-image-picker` (+ manipulator) for camera/gallery and downscaling
+  - `expo-file-system` & `expo-sqlite` (or SecureStore) for offline storage
+  - `expo-print` & `expo-sharing` for local HTML→PDF and share sheets
+- **Styling**: `StyleSheet.create()`; keep styles at the bottom of the file.
+- Prefer small, focused modules under `lib/`, `db/`, and `components/` over dumping logic in screens.
