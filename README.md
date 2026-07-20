@@ -59,12 +59,36 @@ Native modules (`expo-sqlite`, `expo-file-system`, etc.) require a development b
 npx expo run:android
 ```
 
+## Testing
+
+Hybrid approach: unit-test pure helpers as you write them; keep screen tests light.
+
+```bash
+npm test              # run all tests once
+npm run test:watch    # re-run when files change
+```
+
+| Test these | Skip or defer |
+|------------|---------------|
+| `lib/` helpers (folder names, later CSV/PDF builders) | Styling / layout polish |
+| `db/` query helpers when logic is non-trivial | Every screen in full |
+| One smoke test per critical screen (e.g. Welcome) | 100% coverage goals |
+
+Tests live under `__tests__/`. Naming uses `*-test.ts` / `*-test.tsx` (jest-expo convention).
+
+**Gotchas for this stack:**
+- `@testing-library/react-native` v14: always `await render(...)`.
+- When mocking `useSQLiteContext`, return one **stable** object (not a new `{}` each call), or focus effects can loop forever.
+
 ## Project structure
 
 ```
 app/              Expo Router screens (file-based navigation)
 components/       Shared UI (AppHeader, themed primitives)
 constants/        Colors and app-wide tokens
+lib/              Pure helpers (safe to unit-test first)
+db/               SQLite helpers
+__tests__/        Jest unit + light screen smoke tests
 assets/           App icons and splash images
 ```
 
