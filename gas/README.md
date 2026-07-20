@@ -1,8 +1,8 @@
-# Google Apps Script gateway (Milestone 3 — todo `m3-gas`)
+# Google Apps Script gateway (Milestone 3)
 
 This folder holds the **cloud receptionist** for Home Inventory: a Web App that reads/writes your Google Sheet and stores item photos in a Drive folder.
 
-The Expo app sync layer (`m3-sync`) is **not** wired yet. This todo only delivers the script + deploy steps + TypeScript contract in `types/gasSync.ts`.
+The Expo app talks to this gateway from **Settings** (URL + folder id), **Export → Google Sheets**, and **Import → Import from Sheets**.
 
 ## What it does
 
@@ -73,12 +73,14 @@ Then try:
 
 `YOUR_WEB_APP_URL?action=download`
 
-### 6. Store the URL for the app (next todo)
+### 6. Store the URL for the app
 Paste the Web App URL into:
 
 - Local `.env` as `EXPO_PUBLIC_GAS_WEB_APP_URL=...` (see [`.env.example`](../.env.example)), and/or  
 - Optional private notes file: copy [`secrets.local.md.example`](./secrets.local.md.example) → `secrets.local.md` (gitignored)  
-- The in-app settings row (`app_settings.gas_web_app_url`) when `m3-sync` adds a Settings UI.
+- In-app **Settings** (gear icon in the header) → saves to `app_settings` on the phone
+
+Export uses **Export → Google Sheets**; Import uses **Import → Import from Sheets**. Both read the URL from Settings first, then fall back to `EXPO_PUBLIC_*`.
 
 ## Secrets checklist (treat like API keys)
 

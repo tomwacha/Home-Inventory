@@ -47,6 +47,7 @@ export default function RootLayout() {
                   contentStyle: { backgroundColor: 'transparent' },
                 }}>
                 <Stack.Screen name="index" />
+                <Stack.Screen name="settings" />
                 <Stack.Screen name="add-house" options={{ presentation: 'modal' }} />
                 <Stack.Screen name="categories/index" />
                 <Stack.Screen name="categories/[categoryId]" />

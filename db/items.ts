@@ -1,10 +1,12 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
+import type { GasUploadResultItem } from '@/types/gasSync';
 import type {
   ExportInventoryRow,
   HouseTotals,
   Item,
   NewItemInput,
+  SyncInventoryRow,
   SyncStatus,
 } from '@/types/inventory';
 
@@ -308,4 +310,253 @@ export async function getExportRowsForHouse(
     description: row.description ?? '',
     localImagePath: row.local_image_path,
   }));
+}
+
+type SyncInventoryRowSql = {
+  item_id: number;
+  sheet_row_id: string | null;
+  room_name: string;
+  item_name: string;
+  brand: string | null;
+  category_name: string | null;
+  purchase_price_usd: number;
+  purchase_year: number | null;
+  description: string | null;
+  local_image_path: string | null;
+  updated_at: string;
+};
+
+/**
+ * Loads every item in a house with ids needed for Google Sheets upload.
+ */
+export async function getSyncRowsForHouse(
+  database: SQLiteDatabase,
+  houseId: number,
+): Promise<SyncInventoryRow[]> {
+  const rows = await database.getAllAsync<SyncInventoryRowSql>(
+    `SELECT
+      items.id AS item_id,
+      items.sheet_row_id AS sheet_row_id,
+      rooms.name AS room_name,
+      items.name AS item_name,
+      items.brand AS brand,
+      categories.name AS category_name,
+      items.purchase_price_usd AS purchase_price_usd,
+      items.purchase_year AS purchase_year,
+      items.description AS description,
+      items.local_image_path AS local_image_path,
+      items.updated_at AS updated_at
+     FROM items
+     INNER JOIN rooms ON rooms.id = items.room_id
+     LEFT JOIN categories ON categories.id = items.category_id
+     WHERE rooms.house_id = ?
+     ORDER BY rooms.name COLLATE NOCASE ASC, items.name COLLATE NOCASE ASC`,
+    houseId,
+  );
+
+  return rows.map((row) => ({
+    itemId: row.item_id,
+    sheetRowId: row.sheet_row_id,
+    roomName: row.room_name,
+    itemName: row.item_name,
+    brand: row.brand ?? '',
+    categoryName: row.category_name ?? '',
+    purchasePriceUsd: row.purchase_price_usd,
+    purchaseYear: row.purchase_year,
+    description: row.description ?? '',
+    localImagePath: row.local_image_path,
+    updatedAt: row.updated_at,
+  }));
+}
+
+/**
+ * After a successful upload, stores sheet ids / Drive URLs and marks items synced.
+ * Skipped results leave the local row unchanged (still awaiting a later override).
+ */
+export async function markItemsSyncedFromUploadResults(
+  database: SQLiteDatabase,
+  uploadResults: GasUploadResultItem[],
+): Promise<void> {
+  for (const uploadResult of uploadResults) {
+    // Skipped duplicates were not written — keep local sync_status as-is.
+    if (uploadResult.status === 'skipped') {
+      continue;
+    }
+
+    await database.runAsync(
+      `UPDATE items SET
+        sheet_row_id = ?,
+        drive_image_url = ?,
+        sync_status = 'synced'
+       WHERE id = ?`,
+      uploadResult.sheetRowId,
+      uploadResult.driveImageUrl,
+      uploadResult.clientItemId,
+    );
+  }
+}
+
+/**
+ * Finds an item in a house by its cloud sheet_row_id (for import matching).
+ */
+export async function getItemBySheetRowIdInHouse(
+  database: SQLiteDatabase,
+  houseId: number,
+  sheetRowId: string,
+): Promise<Item | null> {
+  const row = await database.getFirstAsync<ItemRow>(
+    `SELECT
+      items.id, items.room_id, items.name, items.brand, items.category_id,
+      items.purchase_price_usd, items.purchase_year, items.description,
+      items.local_image_path, items.drive_image_url, items.sheet_row_id,
+      items.updated_at, items.sync_status
+     FROM items
+     INNER JOIN rooms ON rooms.id = items.room_id
+     WHERE rooms.house_id = ?
+       AND items.sheet_row_id = ?
+     LIMIT 1`,
+    houseId,
+    sheetRowId,
+  );
+
+  if (row === null || row === undefined) {
+    return null;
+  }
+
+  return mapItemRowToItem(row);
+}
+
+/**
+ * Finds an item by room id + name (case-insensitive) for import matching.
+ */
+export async function getItemByRoomIdAndName(
+  database: SQLiteDatabase,
+  roomId: number,
+  itemName: string,
+): Promise<Item | null> {
+  const row = await database.getFirstAsync<ItemRow>(
+    `SELECT
+      id, room_id, name, brand, category_id,
+      purchase_price_usd, purchase_year, description,
+      local_image_path, drive_image_url, sheet_row_id,
+      updated_at, sync_status
+     FROM items
+     WHERE room_id = ?
+       AND name = ? COLLATE NOCASE
+     LIMIT 1`,
+    roomId,
+    itemName.trim(),
+  );
+
+  if (row === null || row === undefined) {
+    return null;
+  }
+
+  return mapItemRowToItem(row);
+}
+
+/**
+ * Writes cloud fields onto an existing local item during import (merge, not wipe).
+ */
+export async function applyImportedItemFields(
+  database: SQLiteDatabase,
+  itemId: number,
+  updates: {
+    roomId: number;
+    name: string;
+    brand: string | null;
+    categoryId: number | null;
+    purchasePriceUsd: number;
+    purchaseYear: number | null;
+    description: string | null;
+    localImagePath: string | null;
+    driveImageUrl: string | null;
+    sheetRowId: string;
+    updatedAt: string;
+  },
+): Promise<void> {
+  await database.runAsync(
+    `UPDATE items SET
+      room_id = ?,
+      name = ?,
+      brand = ?,
+      category_id = ?,
+      purchase_price_usd = ?,
+      purchase_year = ?,
+      description = ?,
+      local_image_path = ?,
+      drive_image_url = ?,
+      sheet_row_id = ?,
+      updated_at = ?,
+      sync_status = 'synced'
+     WHERE id = ?`,
+    updates.roomId,
+    updates.name.trim(),
+    updates.brand,
+    updates.categoryId,
+    updates.purchasePriceUsd,
+    updates.purchaseYear,
+    updates.description,
+    updates.localImagePath,
+    updates.driveImageUrl,
+    updates.sheetRowId,
+    updates.updatedAt,
+    itemId,
+  );
+}
+
+/**
+ * Inserts a new local item from a cloud download row.
+ */
+export async function createItemFromImport(
+  database: SQLiteDatabase,
+  input: {
+    roomId: number;
+    name: string;
+    brand: string | null;
+    categoryId: number | null;
+    purchasePriceUsd: number;
+    purchaseYear: number | null;
+    description: string | null;
+    localImagePath: string | null;
+    driveImageUrl: string | null;
+    sheetRowId: string;
+    updatedAt: string;
+  },
+): Promise<Item> {
+  const result = await database.runAsync(
+    `INSERT INTO items (
+      room_id,
+      name,
+      brand,
+      category_id,
+      purchase_price_usd,
+      purchase_year,
+      description,
+      local_image_path,
+      drive_image_url,
+      sheet_row_id,
+      updated_at,
+      sync_status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced')`,
+    input.roomId,
+    input.name.trim(),
+    input.brand,
+    input.categoryId,
+    input.purchasePriceUsd,
+    input.purchaseYear,
+    input.description,
+    input.localImagePath,
+    input.driveImageUrl,
+    input.sheetRowId,
+    input.updatedAt,
+  );
+
+  const createdItem = await getItemById(database, result.lastInsertRowId);
+
+  if (createdItem === null) {
+    throw new Error('Failed to load item after import insert.');
+  }
+
+  return createdItem;
 }

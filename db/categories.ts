@@ -73,6 +73,59 @@ export async function getCategoryById(
 }
 
 /**
+ * Finds a category by name (case-insensitive), or null if missing.
+ */
+export async function getCategoryByName(
+  database: SQLiteDatabase,
+  categoryName: string,
+): Promise<Category | null> {
+  const trimmedCategoryName = categoryName.trim();
+
+  if (trimmedCategoryName.length === 0) {
+    return null;
+  }
+
+  const row = await database.getFirstAsync<CategoryRow>(
+    `SELECT id, name
+     FROM categories
+     WHERE name = ? COLLATE NOCASE
+     LIMIT 1`,
+    trimmedCategoryName,
+  );
+
+  if (row === null || row === undefined) {
+    return null;
+  }
+
+  return mapCategoryRowToCategory(row);
+}
+
+/**
+ * Returns an existing category or creates one — used during Sheet import.
+ * Empty names return null (item stays uncategorized).
+ */
+export async function getOrCreateCategoryByName(
+  database: SQLiteDatabase,
+  categoryName: string,
+): Promise<Category | null> {
+  const trimmedCategoryName = categoryName.trim();
+
+  if (trimmedCategoryName.length === 0) {
+    return null;
+  }
+
+  const existingCategory = await getCategoryByName(database, trimmedCategoryName);
+
+  if (existingCategory !== null) {
+    return existingCategory;
+  }
+
+  return createCategory(database, {
+    name: trimmedCategoryName,
+  });
+}
+
+/**
  * Renames a category (Feature 8 edit).
  */
 export async function updateCategoryName(

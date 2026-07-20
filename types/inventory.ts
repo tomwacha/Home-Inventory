@@ -93,3 +93,20 @@ export type ExportInventoryRow = {
   description: string;
   localImagePath: string | null;
 };
+
+/**
+ * One flattened inventory row for Google Sheets sync (includes ids + timestamps).
+ */
+export type SyncInventoryRow = {
+  itemId: number;
+  sheetRowId: string | null;
+  roomName: string;
+  itemName: string;
+  brand: string;
+  categoryName: string;
+  purchasePriceUsd: number;
+  purchaseYear: number | null;
+  description: string;
+  localImagePath: string | null;
+  updatedAt: string;
+};

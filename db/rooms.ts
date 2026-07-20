@@ -81,6 +81,51 @@ export async function getRoomById(
 }
 
 /**
+ * Finds a room in a house by name (case-insensitive), or null if missing.
+ */
+export async function getRoomByHouseIdAndName(
+  database: SQLiteDatabase,
+  houseId: number,
+  roomName: string,
+): Promise<Room | null> {
+  const row = await database.getFirstAsync<RoomRow>(
+    `SELECT id, house_id, name
+     FROM rooms
+     WHERE house_id = ?
+       AND name = ? COLLATE NOCASE
+     LIMIT 1`,
+    houseId,
+    roomName.trim(),
+  );
+
+  if (row === null || row === undefined) {
+    return null;
+  }
+
+  return mapRoomRowToRoom(row);
+}
+
+/**
+ * Returns an existing room or creates one — used during Sheet import.
+ */
+export async function getOrCreateRoomByName(
+  database: SQLiteDatabase,
+  houseId: number,
+  roomName: string,
+): Promise<Room> {
+  const existingRoom = await getRoomByHouseIdAndName(database, houseId, roomName);
+
+  if (existingRoom !== null) {
+    return existingRoom;
+  }
+
+  return createRoom(database, {
+    houseId,
+    name: roomName.trim(),
+  });
+}
+
+/**
  * Renames a room.
  */
 export async function updateRoomName(

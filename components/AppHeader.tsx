@@ -81,9 +81,20 @@ export default function AppHeader({ showHouseSelector = true }: AppHeaderProps) 
           borderBottomColor: colors.border,
         },
       ]}>
-      <Pressable onPress={() => router.push('/')} accessibilityRole="button">
-        <Text style={[styles.title, { color: colors.text }]}>Home Inventory</Text>
-      </Pressable>
+      <View style={styles.titleRow}>
+        <Pressable onPress={() => router.push('/')} accessibilityRole="button">
+          <Text style={[styles.title, { color: colors.text }]}>Home Inventory</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => router.push('/settings')}
+          accessibilityRole="button"
+          accessibilityLabel="Open settings"
+          style={styles.settingsButton}
+          hitSlop={8}>
+          <Ionicons name="settings-outline" size={22} color={colors.text} />
+        </Pressable>
+      </View>
 
       {showHouseSelector ? (
         <TouchableOpacity
@@ -155,6 +166,15 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: '700',
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 1,
+  },
+  settingsButton: {
+    padding: 4,
   },
   selector: {
     flexDirection: 'row',
