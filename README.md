@@ -234,21 +234,6 @@ Conventions:
 
 ---
 
-## Roadmap status
-
-Phase 1 milestones from the product brief are implemented:
-
-| Milestone | Status |
-|-----------|--------|
-| 1 — Local UI + SQLite | Complete |
-| 2 — Camera, images, PDF/CSV | Complete |
-| 3 — GAS gateway + two-way sync | Complete |
-| 4 — Polish (edit/delete, sorting, docs) | Complete |
-
-Accepted Milestone 3 UX choices: Import is an explicit screen action (not pull-to-refresh); Drive folder id is configured in Settings / Script properties (not an in-app folder picker).
-
----
-
 ## Documentation
 
 | Document | Description |
