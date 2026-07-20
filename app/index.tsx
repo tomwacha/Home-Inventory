@@ -68,7 +68,7 @@ export default function WelcomeScreen() {
         Welcome to Home Inventory
       </Text>
       <Text style={[screenStyles.subtitle, { color: colors.text, textAlign: 'center' }]}>
-        Track your possessions for insurance claims — fully offline on your device.
+        Track your possessions for insurance claims, fully offline on your device.
       </Text>
 
       {/* Pressable + router.push (not Link asChild) so Android paints the blue button. */}

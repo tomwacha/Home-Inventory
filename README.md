@@ -20,7 +20,7 @@ Cloud gateway deploy guide: [gas/README.md](gas/README.md).
 ### Inventory management
 - Multiple houses, rooms, and items with categories
 - Search items by name or description within a house (and within a room)
-- House totals (rooms, item count, purchase value, and policy count)
+- House totals (rooms, item count, and purchase value)
 - Per-house insurance policies (company, phone, policy number, expiration, declarations photo) — **local only**; not included in Sheets/Drive sync or PDF/CSV export. Manage from House → **View Policies**.
 - Edit screens to rename houses, rooms, and categories
 - Confirmed local delete for houses, rooms, items, categories, and policies

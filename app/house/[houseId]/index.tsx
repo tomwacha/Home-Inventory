@@ -15,7 +15,6 @@ import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 import { screenStyles } from '@/constants/screenStyles';
 import { getHouseById } from '@/db/houses';
-import { getPolicyCountForHouse } from '@/db/insurancePolicies';
 import { getHouseTotals, searchItemsInHouse } from '@/db/items';
 import { getRoomsByHouseId } from '@/db/rooms';
 import type { House, HouseTotals, Item, Room } from '@/types/inventory';
@@ -35,7 +34,6 @@ export default function HouseMainScreen() {
   const [house, setHouse] = useState<House | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [totals, setTotals] = useState<HouseTotals>({ itemCount: 0, totalValueUsd: 0 });
-  const [policyCount, setPolicyCount] = useState(0);
   const [searchText, setSearchText] = useState('');
   const [searchResults, setSearchResults] = useState<Item[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -59,13 +57,11 @@ export default function HouseMainScreen() {
           const loadedHouse = await getHouseById(database, houseId);
           const loadedRooms = await getRoomsByHouseId(database, houseId);
           const loadedTotals = await getHouseTotals(database, houseId);
-          const loadedPolicyCount = await getPolicyCountForHouse(database, houseId);
 
           if (isStillFocused) {
             setHouse(loadedHouse);
             setRooms(loadedRooms);
             setTotals(loadedTotals);
-            setPolicyCount(loadedPolicyCount);
           }
         } catch (error) {
           console.log('HouseMainScreen load error:', error);
@@ -144,8 +140,7 @@ export default function HouseMainScreen() {
       <Text style={[screenStyles.title, { color: colors.text }]}>{house.name}</Text>
       <Text style={[screenStyles.metaText, { color: colors.text }]}>
         {rooms.length} rooms · {totals.itemCount} items · $
-        {totals.totalValueUsd.toFixed(2)} total value · {policyCount}{' '}
-        {policyCount === 1 ? 'policy' : 'policies'}
+        {totals.totalValueUsd.toFixed(2)} total value
       </Text>
 
       {errorMessage !== null ? (

@@ -66,10 +66,6 @@ jest.mock('@/db/items', () => ({
   searchItemsInHouse: jest.fn(async () => []),
 }));
 
-jest.mock('@/db/insurancePolicies', () => ({
-  getPolicyCountForHouse: jest.fn(async () => 0),
-}));
-
 /**
  * Smoke tests for House Main Page navigation helpers.
  */
@@ -84,7 +80,6 @@ describe('<HouseMainScreen />', () => {
     expect(await screen.findByText('Beach House')).toBeTruthy();
     expect(await screen.findByText('Edit House')).toBeTruthy();
     expect(await screen.findByText('View Policies')).toBeTruthy();
-    expect(await screen.findByText(/0 policies/)).toBeTruthy();
 
     const backButton = await screen.findByText('Back to Welcome');
     fireEvent.press(backButton);
