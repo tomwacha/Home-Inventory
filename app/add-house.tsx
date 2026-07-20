@@ -68,7 +68,7 @@ export default function AddHouseScreen() {
         This creates a local folder for photos and a database record for the house.
       </Text>
 
-      <Text style={[screenStyles.label, { color: colors.text }]}>House name</Text>
+      <Text style={[screenStyles.label, { color: colors.text }]}>House name *</Text>
       <TextInput
         value={houseName}
         onChangeText={setHouseName}

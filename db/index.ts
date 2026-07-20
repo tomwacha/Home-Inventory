@@ -35,8 +35,18 @@ export {
   updateItem,
   deleteItem,
   searchItemsInHouse,
+  searchItemsInRoom,
   getHouseTotals,
   getExportRowsForHouse,
 } from '@/db/items';
 
 export { getAppSettings, updateAppSettings } from '@/db/settings';
+
+export {
+  getPoliciesByHouseId,
+  getPolicyCountForHouse,
+  getPolicyById,
+  createPolicy,
+  updatePolicy,
+  deletePolicy,
+} from '@/db/insurancePolicies';

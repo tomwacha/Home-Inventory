@@ -25,6 +25,19 @@ export type Category = {
   name: string;
 };
 
+/**
+ * One insurance policy belonging to a single house (local-only; not cloud synced).
+ */
+export type HouseInsurancePolicy = {
+  id: number;
+  houseId: number;
+  companyName: string;
+  companyPhone: string | null;
+  policyNumber: string | null;
+  policyExpirationDate: string | null;
+  declarationsImagePath: string | null;
+};
+
 export type Item = {
   id: number;
   roomId: number;
@@ -65,6 +78,15 @@ export type NewRoomInput = {
 
 export type NewCategoryInput = {
   name: string;
+};
+
+export type NewHouseInsurancePolicyInput = {
+  houseId: number;
+  companyName: string;
+  companyPhone?: string | null;
+  policyNumber?: string | null;
+  policyExpirationDate?: string | null;
+  declarationsImagePath?: string | null;
 };
 
 export type NewItemInput = {

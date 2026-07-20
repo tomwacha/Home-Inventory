@@ -4,7 +4,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
  * Bump this number whenever you add a new migration block below.
  * SQLite stores the applied version in PRAGMA user_version.
  */
-export const DATABASE_VERSION = 2;
+export const DATABASE_VERSION = 3;
 
 /**
  * Creates tables (and later: alters them) so older installs can upgrade safely.
@@ -89,8 +89,26 @@ export async function migrateDatabaseIfNeeded(database: SQLiteDatabase): Promise
     currentDatabaseVersion = 2;
   }
 
+  // Version 2 → 3: per-house insurance policies (local-only, not synced).
+  if (currentDatabaseVersion === 2) {
+    await database.execAsync(`
+      CREATE TABLE IF NOT EXISTS house_insurance_policies (
+        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+        house_id INTEGER NOT NULL,
+        company_name TEXT NOT NULL,
+        company_phone TEXT,
+        policy_number TEXT,
+        policy_expiration_date TEXT,
+        declarations_image_path TEXT,
+        FOREIGN KEY (house_id) REFERENCES houses (id) ON DELETE CASCADE
+      );
+    `);
+
+    currentDatabaseVersion = 3;
+  }
+
   // Future migrations go here, for example:
-  // if (currentDatabaseVersion === 2) { ...; currentDatabaseVersion = 3; }
+  // if (currentDatabaseVersion === 3) { ...; currentDatabaseVersion = 4; }
 
   await database.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);
 }

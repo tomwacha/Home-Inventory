@@ -14,6 +14,7 @@ import { screenStyles } from '@/constants/screenStyles';
 import { getAllCategories } from '@/db/categories';
 import { getHouseById } from '@/db/houses';
 import { createItem } from '@/db/items';
+import { getRoomById } from '@/db/rooms';
 import type { Category } from '@/types/inventory';
 
 /**
@@ -34,6 +35,7 @@ export default function AddItemScreen() {
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [houseFolderPath, setHouseFolderPath] = useState('');
+  const [roomName, setRoomName] = useState<string | null>(null);
   const [itemName, setItemName] = useState('');
   const [brand, setBrand] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
@@ -52,10 +54,12 @@ export default function AddItemScreen() {
         try {
           const loadedCategories = await getAllCategories(database);
           const loadedHouse = await getHouseById(database, houseId);
+          const loadedRoom = await getRoomById(database, roomId);
 
           if (isStillFocused) {
             setCategories(loadedCategories);
             setHouseFolderPath(loadedHouse?.folderPath ?? '');
+            setRoomName(loadedRoom?.name ?? null);
           }
         } catch (error) {
           console.log('AddItemScreen category load error:', error);
@@ -67,7 +71,7 @@ export default function AddItemScreen() {
       return () => {
         isStillFocused = false;
       };
-    }, [database, houseId]),
+    }, [database, houseId, roomId]),
   );
 
   async function handleSaveItem() {
@@ -117,7 +121,9 @@ export default function AddItemScreen() {
 
   return (
     <KeyboardAwareFormScroll backgroundColor={colors.background}>
-        <Text style={[screenStyles.title, { color: colors.text }]}>Add Item</Text>
+        <Text style={[screenStyles.title, { color: colors.text }]}>
+          {roomName !== null ? `Add Item to ${roomName}` : 'Add Item'}
+        </Text>
 
         <ImagePickerField
           imageUri={localImagePath}
@@ -126,7 +132,7 @@ export default function AddItemScreen() {
           onError={setErrorMessage}
         />
 
-        <Text style={[screenStyles.label, { color: colors.text }]}>Name</Text>
+        <Text style={[screenStyles.label, { color: colors.text }]}>Name *</Text>
         <FormTextInput
           value={itemName}
           onChangeText={setItemName}

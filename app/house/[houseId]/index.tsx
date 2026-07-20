@@ -139,7 +139,8 @@ export default function HouseMainScreen() {
     <View style={[screenStyles.container, { backgroundColor: colors.background }]}>
       <Text style={[screenStyles.title, { color: colors.text }]}>{house.name}</Text>
       <Text style={[screenStyles.metaText, { color: colors.text }]}>
-        {totals.itemCount} items · ${totals.totalValueUsd.toFixed(2)} total value
+        {rooms.length} rooms · {totals.itemCount} items · $
+        {totals.totalValueUsd.toFixed(2)} total value
       </Text>
 
       {errorMessage !== null ? (
@@ -198,6 +199,14 @@ export default function HouseMainScreen() {
         onPress={() => router.push(`/house/${houseId}/edit`)}>
         <Text style={[screenStyles.secondaryButtonText, { color: colors.text }]}>
           Edit House
+        </Text>
+      </Pressable>
+
+      <Pressable
+        style={[screenStyles.secondaryButton, { borderColor: colors.border }]}
+        onPress={() => router.push(`/house/${houseId}/policies`)}>
+        <Text style={[screenStyles.secondaryButtonText, { color: colors.text }]}>
+          View Policies
         </Text>
       </Pressable>
 

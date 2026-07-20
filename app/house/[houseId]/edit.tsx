@@ -147,7 +147,7 @@ export default function EditHouseScreen() {
         Renaming changes the label in the app. Photo files stay in the same local folder.
       </Text>
 
-      <Text style={[screenStyles.label, { color: colors.text }]}>House name</Text>
+      <Text style={[screenStyles.label, { color: colors.text }]}>House name *</Text>
       <TextInput
         value={houseName}
         onChangeText={setHouseName}

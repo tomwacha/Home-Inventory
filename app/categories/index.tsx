@@ -98,7 +98,7 @@ export default function CategoriesScreen() {
         Categories are shared across every house.
       </Text>
 
-      <Text style={[screenStyles.label, { color: colors.text }]}>Add category</Text>
+      <Text style={[screenStyles.label, { color: colors.text }]}>Add category *</Text>
       <TextInput
         value={newCategoryName}
         onChangeText={setNewCategoryName}
