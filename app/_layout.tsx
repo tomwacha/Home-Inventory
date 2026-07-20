@@ -52,10 +52,12 @@ export default function RootLayout() {
                 <Stack.Screen name="categories/index" />
                 <Stack.Screen name="categories/[categoryId]" />
                 <Stack.Screen name="house/[houseId]/index" />
+                <Stack.Screen name="house/[houseId]/edit" />
                 <Stack.Screen name="house/[houseId]/add-room" />
                 <Stack.Screen name="house/[houseId]/export" />
                 <Stack.Screen name="house/[houseId]/import" />
                 <Stack.Screen name="house/[houseId]/room/[roomId]/index" />
+                <Stack.Screen name="house/[houseId]/room/[roomId]/edit" />
                 <Stack.Screen name="house/[houseId]/room/[roomId]/add-item" />
                 <Stack.Screen name="house/[houseId]/room/[roomId]/item/[itemId]/index" />
                 <Stack.Screen name="house/[houseId]/room/[roomId]/item/[itemId]/edit" />

@@ -78,6 +78,7 @@ describe('<HouseMainScreen />', () => {
     await render(<HouseMainScreen />);
 
     expect(await screen.findByText('Beach House')).toBeTruthy();
+    expect(await screen.findByText('Edit House')).toBeTruthy();
 
     const backButton = await screen.findByText('Back to Welcome');
     fireEvent.press(backButton);

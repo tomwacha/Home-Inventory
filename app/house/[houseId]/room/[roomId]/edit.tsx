@@ -14,22 +14,27 @@ import {
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 import { screenStyles } from '@/constants/screenStyles';
-import { getCategoryById, updateCategoryName, deleteCategory } from '@/db/categories';
+import { deleteRoom, getRoomById, updateRoomName } from '@/db/rooms';
 import { confirmDestructiveAction } from '@/lib/confirmDestructiveAction';
 
 /**
- * Edit a single category name (Feature 8).
+ * Edit Room: rename or delete locally with confirmation.
+ * Pattern matches Edit Category / Edit House.
  */
-export default function EditCategoryScreen() {
-  const { categoryId: categoryIdParam } = useLocalSearchParams<{ categoryId: string }>();
-  const categoryId = Number(categoryIdParam);
+export default function EditRoomScreen() {
+  const { houseId: houseIdParam, roomId: roomIdParam } = useLocalSearchParams<{
+    houseId: string;
+    roomId: string;
+  }>();
+  const houseId = Number(houseIdParam);
+  const roomId = Number(roomIdParam);
 
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme];
   const database = useSQLiteContext();
   const router = useRouter();
 
-  const [categoryName, setCategoryName] = useState('');
+  const [roomName, setRoomName] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -39,22 +44,23 @@ export default function EditCategoryScreen() {
     useCallback(() => {
       let isStillFocused = true;
 
-      async function loadCategory() {
+      async function loadRoom() {
         setIsLoading(true);
 
         try {
-          const category = await getCategoryById(database, categoryId);
+          const room = await getRoomById(database, roomId);
+
           if (isStillFocused) {
-            if (category === null) {
-              setErrorMessage('Category not found.');
+            if (room === null) {
+              setErrorMessage('Room not found.');
             } else {
-              setCategoryName(category.name);
+              setRoomName(room.name);
             }
           }
         } catch (error) {
-          console.log('EditCategoryScreen load error:', error);
+          console.log('EditRoomScreen load error:', error);
           if (isStillFocused) {
-            setErrorMessage('Could not load category.');
+            setErrorMessage('Could not load room.');
           }
         } finally {
           if (isStillFocused) {
@@ -63,19 +69,19 @@ export default function EditCategoryScreen() {
         }
       }
 
-      loadCategory();
+      void loadRoom();
 
       return () => {
         isStillFocused = false;
       };
-    }, [database, categoryId]),
+    }, [database, roomId]),
   );
 
-  async function handleSaveCategory() {
-    const trimmedName = categoryName.trim();
+  async function handleSaveRoom() {
+    const trimmedName = roomName.trim();
 
     if (trimmedName.length === 0) {
-      setErrorMessage('Please enter a category name.');
+      setErrorMessage('Please enter a room name.');
       return;
     }
 
@@ -83,35 +89,32 @@ export default function EditCategoryScreen() {
     setErrorMessage(null);
 
     try {
-      await updateCategoryName(database, categoryId, trimmedName);
+      await updateRoomName(database, roomId, trimmedName);
       router.back();
     } catch (error) {
-      console.log('EditCategoryScreen save error:', error);
-      setErrorMessage('Could not save category. Names must be unique.');
+      console.log('EditRoomScreen save error:', error);
+      setErrorMessage('Could not save room name.');
       setIsSaving(false);
     }
   }
 
-  /**
-   * Deletes this category locally. Items keep their rows; category becomes blank.
-   */
-  function handleDeleteCategoryPress() {
+  function handleDeleteRoomPress() {
     confirmDestructiveAction({
-      title: 'Delete category?',
+      title: 'Delete room?',
       message:
-        'Items that used this category will keep their other fields but will have no category. This does not change Google Sheets.',
-      confirmLabel: 'Delete category',
+        'This removes the room and all of its items from this phone. Google Sheet and Drive copies are not deleted.',
+      confirmLabel: 'Delete room',
       onConfirm: () => {
         void (async () => {
           setIsDeleting(true);
           setErrorMessage(null);
 
           try {
-            await deleteCategory(database, categoryId);
-            router.replace('/categories');
+            await deleteRoom(database, roomId);
+            router.replace(`/house/${houseId}`);
           } catch (error) {
-            console.log('EditCategoryScreen delete error:', error);
-            setErrorMessage('Could not delete category.');
+            console.log('EditRoomScreen delete error:', error);
+            setErrorMessage('Could not delete room.');
             setIsDeleting(false);
           }
         })();
@@ -127,20 +130,26 @@ export default function EditCategoryScreen() {
     );
   }
 
+  const isBusy = isSaving || isDeleting;
+
   return (
     <KeyboardAvoidingView
       style={[screenStyles.container, { backgroundColor: colors.background, flex: 1 }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <Text style={[screenStyles.title, { color: colors.text }]}>Edit Category</Text>
+      <Text style={[screenStyles.title, { color: colors.text }]}>Edit Room</Text>
 
-      <Text style={[screenStyles.label, { color: colors.text }]}>Category name</Text>
+      <Text style={[screenStyles.label, { color: colors.text }]}>Room name</Text>
       <TextInput
-        value={categoryName}
-        onChangeText={setCategoryName}
-        editable={!isSaving && !isDeleting}
+        value={roomName}
+        onChangeText={setRoomName}
+        editable={!isBusy}
         style={[
           screenStyles.input,
-          { color: colors.text, borderColor: colors.border, backgroundColor: colors.headerBackground },
+          {
+            color: colors.text,
+            borderColor: colors.border,
+            backgroundColor: colors.headerBackground,
+          },
         ]}
       />
 
@@ -151,10 +160,12 @@ export default function EditCategoryScreen() {
       <Pressable
         style={[
           screenStyles.primaryButton,
-          { backgroundColor: colors.tint, opacity: isSaving || isDeleting ? 0.7 : 1 },
+          { backgroundColor: colors.tint, opacity: isBusy ? 0.7 : 1 },
         ]}
-        disabled={isSaving || isDeleting}
-        onPress={handleSaveCategory}>
+        disabled={isBusy}
+        onPress={() => {
+          void handleSaveRoom();
+        }}>
         {isSaving ? (
           <ActivityIndicator color="#ffffff" />
         ) : (
@@ -164,7 +175,7 @@ export default function EditCategoryScreen() {
 
       <Pressable
         style={[screenStyles.secondaryButton, { borderColor: colors.border }]}
-        disabled={isSaving || isDeleting}
+        disabled={isBusy}
         onPress={() => router.back()}>
         <Text style={[screenStyles.secondaryButtonText, { color: colors.text }]}>Cancel</Text>
       </Pressable>
@@ -172,15 +183,15 @@ export default function EditCategoryScreen() {
       <Pressable
         style={[
           screenStyles.secondaryButton,
-          { borderColor: '#b91c1c', opacity: isSaving || isDeleting ? 0.7 : 1 },
+          { borderColor: '#b91c1c', opacity: isBusy ? 0.7 : 1 },
         ]}
-        disabled={isSaving || isDeleting}
-        onPress={handleDeleteCategoryPress}>
+        disabled={isBusy}
+        onPress={handleDeleteRoomPress}>
         {isDeleting ? (
           <ActivityIndicator color="#b91c1c" />
         ) : (
           <Text style={[screenStyles.secondaryButtonText, { color: '#b91c1c' }]}>
-            Delete Category
+            Delete Room
           </Text>
         )}
       </Pressable>

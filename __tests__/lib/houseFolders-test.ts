@@ -1,4 +1,13 @@
-import { buildSafeHouseFolderName } from '@/lib/houseFolders';
+import { buildSafeHouseFolderName, deleteHouseFolderIfExists } from '@/lib/houseFolders';
+
+jest.mock('expo-file-system/legacy', () => ({
+  getInfoAsync: jest.fn(),
+  deleteAsync: jest.fn(),
+  makeDirectoryAsync: jest.fn(),
+  documentDirectory: 'file:///documents/',
+}));
+
+import * as FileSystem from 'expo-file-system/legacy';
 
 /**
  * Unit tests for pure folder-name logic (no device file system needed).
@@ -39,5 +48,46 @@ describe('buildSafeHouseFolderName', () => {
     const folderName = buildSafeHouseFolderName('House_2-Main');
 
     expect(folderName).toBe('House_2-Main');
+  });
+});
+
+describe('deleteHouseFolderIfExists', () => {
+  beforeEach(() => {
+    jest.mocked(FileSystem.getInfoAsync).mockReset();
+    jest.mocked(FileSystem.deleteAsync).mockReset();
+  });
+
+  test('does nothing when the path is empty', async () => {
+    await deleteHouseFolderIfExists(null);
+    await deleteHouseFolderIfExists('');
+
+    expect(FileSystem.getInfoAsync).not.toHaveBeenCalled();
+  });
+
+  test('deletes an existing folder', async () => {
+    jest.mocked(FileSystem.getInfoAsync).mockResolvedValue({
+      exists: true,
+      uri: 'file:///houses/Beach/',
+      isDirectory: true,
+    } as Awaited<ReturnType<typeof FileSystem.getInfoAsync>>);
+    jest.mocked(FileSystem.deleteAsync).mockResolvedValue(undefined);
+
+    await deleteHouseFolderIfExists('file:///houses/Beach/');
+
+    expect(FileSystem.deleteAsync).toHaveBeenCalledWith('file:///houses/Beach/', {
+      idempotent: true,
+    });
+  });
+
+  test('skips delete when the folder is already gone', async () => {
+    jest.mocked(FileSystem.getInfoAsync).mockResolvedValue({
+      exists: false,
+      uri: 'file:///houses/Missing/',
+      isDirectory: false,
+    } as Awaited<ReturnType<typeof FileSystem.getInfoAsync>>);
+
+    await deleteHouseFolderIfExists('file:///houses/Missing/');
+
+    expect(FileSystem.deleteAsync).not.toHaveBeenCalled();
   });
 });

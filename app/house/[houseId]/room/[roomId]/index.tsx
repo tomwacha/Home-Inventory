@@ -107,6 +107,14 @@ export default function RoomScreen() {
         <Text style={screenStyles.primaryButtonText}>Add Item</Text>
       </Pressable>
 
+      <Pressable
+        style={[screenStyles.secondaryButton, { borderColor: colors.border }]}
+        onPress={() => router.push(`/house/${houseId}/room/${roomId}/edit`)}>
+        <Text style={[screenStyles.secondaryButtonText, { color: colors.text }]}>
+          Edit Room
+        </Text>
+      </Pressable>
+
       <FlatList
         data={items}
         keyExtractor={(item) => String(item.id)}

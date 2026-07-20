@@ -45,3 +45,24 @@ export async function createHouseFolderOnDevice(houseName: string): Promise<stri
 
   return houseFolderPath;
 }
+
+/**
+ * Best-effort delete of a house photo folder (ignores missing paths).
+ */
+export async function deleteHouseFolderIfExists(
+  houseFolderPath: string | null,
+): Promise<void> {
+  if (houseFolderPath === null || houseFolderPath.length === 0) {
+    return;
+  }
+
+  try {
+    const folderInfo = await FileSystem.getInfoAsync(houseFolderPath);
+
+    if (folderInfo.exists) {
+      await FileSystem.deleteAsync(houseFolderPath, { idempotent: true });
+    }
+  } catch (error) {
+    console.log('deleteHouseFolderIfExists skipped:', error);
+  }
+}

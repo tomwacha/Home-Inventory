@@ -195,6 +195,14 @@ export default function HouseMainScreen() {
 
       <Pressable
         style={[screenStyles.secondaryButton, { borderColor: colors.border }]}
+        onPress={() => router.push(`/house/${houseId}/edit`)}>
+        <Text style={[screenStyles.secondaryButtonText, { color: colors.text }]}>
+          Edit House
+        </Text>
+      </Pressable>
+
+      <Pressable
+        style={[screenStyles.secondaryButton, { borderColor: colors.border }]}
         onPress={() => router.push('/categories')}>
         <Text style={[screenStyles.secondaryButtonText, { color: colors.text }]}>
           Manage Categories

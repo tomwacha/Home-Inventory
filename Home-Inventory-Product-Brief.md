@@ -90,3 +90,5 @@ The app sends a structured JSON payload to the Apps Script endpoint containing t
 - Milestone 1: Initialize the Expo TypeScript project template and build out the local UI layout (Forms, List Dashboard, Thumbnail display components).
 - Milestone 2: Integrate native device hardware modules (expo-image-picker, expo-file-system, and expo-print) to establish fully functioning offline PDF exports.
 - Milestone 3: Deploy the Google Apps Script spreadsheet gateway and connect the Expo network layer to execute seamless two-way data syncing.
+  - Accepted UX choices: Import is an explicit Import screen action (not pull-to-refresh). Drive folder id is configured in Settings / Script properties (not an in-app folder picker).
+- Milestone 4: Polish and Android hardening — Edit House / Edit Room screens (rename + confirmed local delete), delete on Edit Category and Item detail, empty/loading/error consistency, alphabetical house list, docs.

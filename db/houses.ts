@@ -49,13 +49,13 @@ export async function createHouse(
 }
 
 /**
- * Returns every house, newest first (useful for Welcome "View House").
+ * Returns every house, sorted A–Z by name (Welcome list + header dropdown).
  */
 export async function getAllHouses(database: SQLiteDatabase): Promise<House[]> {
   const rows = await database.getAllAsync<HouseRow>(
     `SELECT id, name, folder_path, created_at
      FROM houses
-     ORDER BY created_at DESC`,
+     ORDER BY name COLLATE NOCASE ASC`,
   );
 
   return rows.map(mapHouseRowToHouse);
