@@ -88,9 +88,12 @@ components/       Shared UI (AppHeader, themed primitives)
 constants/        Colors and app-wide tokens
 lib/              Pure helpers (safe to unit-test first)
 db/               SQLite helpers
+gas/              Google Apps Script Web App source (Milestone 3 gateway)
 __tests__/        Jest unit + light screen smoke tests
 assets/           App icons and splash images
 ```
+
+Cloud sync setup (after Milestone 2): see [gas/README.md](gas/README.md).
 
 ## Tech stack
 
