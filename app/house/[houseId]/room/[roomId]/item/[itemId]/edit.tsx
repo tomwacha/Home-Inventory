@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import ImagePickerField from '@/components/ImagePickerField';
+import CategoryDropdown from '@/components/CategoryDropdown';
 import KeyboardAwareFormScroll, {
   FormTextInput,
 } from '@/components/KeyboardAwareFormScroll';
@@ -12,7 +13,9 @@ import Colors from '@/constants/Colors';
 import { screenStyles } from '@/constants/screenStyles';
 import { getAllCategories } from '@/db/categories';
 import { getHouseById } from '@/db/houses';
-import { getItemById, updateItem } from '@/db/items';
+import { deleteItem, getItemById, updateItem } from '@/db/items';
+import { confirmDestructiveAction } from '@/lib/confirmDestructiveAction';
+import { deleteLocalImageIfExists } from '@/lib/images';
 import type { Category } from '@/types/inventory';
 
 /**
@@ -48,6 +51,7 @@ export default function EditItemScreen() {
   const [localImagePath, setLocalImagePath] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useFocusEffect(
@@ -147,6 +151,34 @@ export default function EditItemScreen() {
     }
   }
 
+  /**
+   * Confirms then removes the local photo file and SQLite item row.
+   */
+  function handleDeleteItemPress() {
+    confirmDestructiveAction({
+      title: 'Delete item?',
+      message:
+        'This removes the item and its local photo from this phone. Google Sheet and Drive copies are not deleted.',
+      confirmLabel: 'Delete item',
+      onConfirm: () => {
+        void (async () => {
+          setIsDeleting(true);
+          setErrorMessage(null);
+
+          try {
+            await deleteLocalImageIfExists(localImagePath);
+            await deleteItem(database, itemId);
+            router.replace(`/house/${houseId}/room/${roomId}`);
+          } catch (error) {
+            console.log('EditItemScreen delete error:', error);
+            setErrorMessage('Could not delete item.');
+            setIsDeleting(false);
+          }
+        })();
+      },
+    });
+  }
+
   if (isLoading) {
     return (
       <View style={[screenStyles.container, { backgroundColor: colors.background }]}>
@@ -187,30 +219,13 @@ export default function EditItemScreen() {
         />
 
         <Text style={[screenStyles.label, { color: colors.text }]}>Category</Text>
-        <Pressable
-          style={[screenStyles.rowButton, { borderColor: colors.border }]}
-          onPress={() => setSelectedCategoryId(null)}>
-          <Text style={{ color: colors.text }}>
-            {selectedCategoryId === null ? '✓ None' : 'None'}
-          </Text>
-        </Pressable>
-        {categories.map((category) => (
-          <Pressable
-            key={category.id}
-            style={[screenStyles.rowButton, { borderColor: colors.border }]}
-            onPress={() => setSelectedCategoryId(category.id)}>
-            <Text style={{ color: colors.text }}>
-              {selectedCategoryId === category.id ? `✓ ${category.name}` : category.name}
-            </Text>
-          </Pressable>
-        ))}
-        <Pressable
-          style={[screenStyles.secondaryButton, { borderColor: colors.border }]}
-          onPress={() => router.push('/categories')}>
-          <Text style={[screenStyles.secondaryButtonText, { color: colors.text }]}>
-            New / manage categories
-          </Text>
-        </Pressable>
+        <CategoryDropdown
+          categories={categories}
+          selectedCategoryId={selectedCategoryId}
+          onSelectCategoryId={setSelectedCategoryId}
+          onPressManageCategories={() => router.push('/categories')}
+          disabled={isSaving || isDeleting}
+        />
 
         <Text style={[screenStyles.label, { color: colors.text }]}>Purchase price (USD)</Text>
         <FormTextInput
@@ -254,9 +269,9 @@ export default function EditItemScreen() {
         <Pressable
           style={[
             screenStyles.primaryButton,
-            { backgroundColor: colors.tint, opacity: isSaving ? 0.7 : 1 },
+            { backgroundColor: colors.tint, opacity: isSaving || isDeleting ? 0.7 : 1 },
           ]}
-          disabled={isSaving}
+          disabled={isSaving || isDeleting}
           onPress={handleSaveItem}>
           {isSaving ? (
             <ActivityIndicator color="#ffffff" />
@@ -267,9 +282,25 @@ export default function EditItemScreen() {
 
         <Pressable
           style={[screenStyles.secondaryButton, { borderColor: colors.border }]}
-          disabled={isSaving}
+          disabled={isSaving || isDeleting}
           onPress={() => router.back()}>
           <Text style={[screenStyles.secondaryButtonText, { color: colors.text }]}>Cancel</Text>
+        </Pressable>
+
+        <Pressable
+          style={[
+            screenStyles.destructiveTextLinkWrap,
+            { opacity: isSaving || isDeleting ? 0.7 : 1 },
+          ]}
+          disabled={isSaving || isDeleting}
+          onPress={handleDeleteItemPress}
+          accessibilityRole="button"
+          accessibilityLabel="Delete item">
+          {isDeleting ? (
+            <ActivityIndicator color="#b91c1c" />
+          ) : (
+            <Text style={screenStyles.destructiveTextLink}>Delete item</Text>
+          )}
         </Pressable>
     </KeyboardAwareFormScroll>
   );

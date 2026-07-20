@@ -190,18 +190,15 @@ export default function EditHouseScreen() {
       </Pressable>
 
       <Pressable
-        style={[
-          screenStyles.secondaryButton,
-          { borderColor: '#b91c1c', opacity: isBusy ? 0.7 : 1 },
-        ]}
+        style={[screenStyles.destructiveTextLinkWrap, { opacity: isBusy ? 0.7 : 1 }]}
         disabled={isBusy}
-        onPress={handleDeleteHousePress}>
+        onPress={handleDeleteHousePress}
+        accessibilityRole="button"
+        accessibilityLabel="Delete house">
         {isDeleting ? (
           <ActivityIndicator color="#b91c1c" />
         ) : (
-          <Text style={[screenStyles.secondaryButtonText, { color: '#b91c1c' }]}>
-            Delete House
-          </Text>
+          <Text style={screenStyles.destructiveTextLink}>Delete house</Text>
         )}
       </Pressable>
     </KeyboardAvoidingView>

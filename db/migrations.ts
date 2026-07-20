@@ -4,7 +4,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
  * Bump this number whenever you add a new migration block below.
  * SQLite stores the applied version in PRAGMA user_version.
  */
-export const DATABASE_VERSION = 1;
+export const DATABASE_VERSION = 2;
 
 /**
  * Creates tables (and later: alters them) so older installs can upgrade safely.
@@ -79,8 +79,18 @@ export async function migrateDatabaseIfNeeded(database: SQLiteDatabase): Promise
     currentDatabaseVersion = 1;
   }
 
+  // Version 1 → 2: preferred camera vs gallery for empty photo taps.
+  if (currentDatabaseVersion === 1) {
+    await database.execAsync(`
+      ALTER TABLE app_settings
+      ADD COLUMN default_image_source TEXT NOT NULL DEFAULT 'camera';
+    `);
+
+    currentDatabaseVersion = 2;
+  }
+
   // Future migrations go here, for example:
-  // if (currentDatabaseVersion === 1) { ...; currentDatabaseVersion = 2; }
+  // if (currentDatabaseVersion === 2) { ...; currentDatabaseVersion = 3; }
 
   await database.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);
 }

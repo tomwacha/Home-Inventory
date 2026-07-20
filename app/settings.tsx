@@ -11,10 +11,10 @@ import Colors from '@/constants/Colors';
 import { screenStyles } from '@/constants/screenStyles';
 import { getAppSettings, updateAppSettings } from '@/db/settings';
 import { getEnvGasDefaults, pingGas } from '@/lib/gasClient';
+import type { DefaultImageSource } from '@/types/inventory';
 
 /**
- * Cloud sync Settings: Web App URL + Drive folder id (stored in SQLite).
- * Prefills from EXPO_PUBLIC_* when the database fields are still empty.
+ * App Settings: cloud sync URL/folder + default photo source for empty taps.
  */
 export default function SettingsScreen() {
   const colorScheme = useColorScheme();
@@ -24,6 +24,8 @@ export default function SettingsScreen() {
 
   const [webAppUrl, setWebAppUrl] = useState('');
   const [driveFolderId, setDriveFolderId] = useState('');
+  const [defaultImageSource, setDefaultImageSource] =
+    useState<DefaultImageSource>('camera');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
@@ -32,7 +34,7 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     /**
-     * Loads SQLite settings; seeds empty fields from local env defaults.
+     * Loads SQLite settings; seeds empty cloud fields from local env defaults.
      */
     async function loadSettings() {
       try {
@@ -43,6 +45,7 @@ export default function SettingsScreen() {
         setDriveFolderId(
           appSettings.defaultDriveFolderId ?? envDefaults.driveFolderId,
         );
+        setDefaultImageSource(appSettings.defaultImageSource);
       } catch (error) {
         console.log('SettingsScreen load error:', error);
         setErrorMessage('Could not load settings.');
@@ -55,7 +58,7 @@ export default function SettingsScreen() {
   }, [database]);
 
   /**
-   * Persists URL + folder id into the single app_settings row.
+   * Persists cloud URL, folder id, and photo preference into app_settings.
    */
   async function handleSaveSettings() {
     setIsSaving(true);
@@ -70,6 +73,7 @@ export default function SettingsScreen() {
         gasWebAppUrl: trimmedWebAppUrl.length > 0 ? trimmedWebAppUrl : null,
         defaultDriveFolderId:
           trimmedDriveFolderId.length > 0 ? trimmedDriveFolderId : null,
+        defaultImageSource,
       });
 
       setStatusMessage('Settings saved on this phone.');
@@ -121,9 +125,53 @@ export default function SettingsScreen() {
     <KeyboardAwareFormScroll backgroundColor={colors.background}>
       <Text style={[screenStyles.title, { color: colors.text }]}>Settings</Text>
       <Text style={[screenStyles.subtitle, { color: colors.text }]}>
-        Store your Google Apps Script Web App URL and optional Drive folder id on
-        this phone. Treat the URL like a private key — do not share it.
+        Cloud sync credentials and photo defaults for this phone. Treat the Web App
+        URL like a private key — do not share it.
       </Text>
+
+      <Text style={[screenStyles.label, { color: colors.text }]}>
+        Default photo source
+      </Text>
+      <Text style={[screenStyles.metaText, { color: colors.text, marginBottom: 8 }]}>
+        Used when you tap an empty Add photo area (faster Add Item). Changing an
+        existing photo still shows the full menu.
+      </Text>
+
+      <Pressable
+        style={[
+          screenStyles.rowButton,
+          {
+            borderColor: colors.border,
+            backgroundColor:
+              defaultImageSource === 'camera'
+                ? colors.headerBackground
+                : 'transparent',
+          },
+        ]}
+        disabled={isSaving || isTesting}
+        onPress={() => setDefaultImageSource('camera')}>
+        <Text style={[screenStyles.rowButtonText, { color: colors.text }]}>
+          {defaultImageSource === 'camera' ? '✓ Camera' : 'Camera'}
+        </Text>
+      </Pressable>
+
+      <Pressable
+        style={[
+          screenStyles.rowButton,
+          {
+            borderColor: colors.border,
+            backgroundColor:
+              defaultImageSource === 'gallery'
+                ? colors.headerBackground
+                : 'transparent',
+          },
+        ]}
+        disabled={isSaving || isTesting}
+        onPress={() => setDefaultImageSource('gallery')}>
+        <Text style={[screenStyles.rowButtonText, { color: colors.text }]}>
+          {defaultImageSource === 'gallery' ? '✓ Gallery' : 'Gallery'}
+        </Text>
+      </Pressable>
 
       <Text style={[screenStyles.label, { color: colors.text }]}>
         Web App URL (/exec)

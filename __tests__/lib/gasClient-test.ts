@@ -72,6 +72,7 @@ describe('resolveGasConnection', () => {
       id: 1,
       gasWebAppUrl: 'https://script.google.com/macros/s/settings/exec',
       defaultDriveFolderId: 'folder-settings',
+      defaultImageSource: 'camera',
     });
 
     const connection = await resolveGasConnection({} as never);
@@ -88,6 +89,7 @@ describe('resolveGasConnection', () => {
       id: 1,
       gasWebAppUrl: null,
       defaultDriveFolderId: null,
+      defaultImageSource: 'camera',
     });
 
     await expect(resolveGasConnection({} as never)).rejects.toThrow(/Open Settings/i);

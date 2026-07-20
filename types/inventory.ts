@@ -41,11 +41,15 @@ export type Item = {
   syncStatus: SyncStatus;
 };
 
-/** Single-row app preferences (cloud sync URL, etc.). */
+/** Preferred source when tapping an empty photo area (Add Item). */
+export type DefaultImageSource = 'camera' | 'gallery';
+
+/** Single-row app preferences (cloud sync URL, photo defaults, etc.). */
 export type AppSettings = {
   id: number;
   gasWebAppUrl: string | null;
   defaultDriveFolderId: string | null;
+  defaultImageSource: DefaultImageSource;
 };
 
 /** Input shapes used when creating rows (id is assigned by SQLite). */

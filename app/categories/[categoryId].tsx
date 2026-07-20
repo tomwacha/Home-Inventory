@@ -171,17 +171,17 @@ export default function EditCategoryScreen() {
 
       <Pressable
         style={[
-          screenStyles.secondaryButton,
-          { borderColor: '#b91c1c', opacity: isSaving || isDeleting ? 0.7 : 1 },
+          screenStyles.destructiveTextLinkWrap,
+          { opacity: isSaving || isDeleting ? 0.7 : 1 },
         ]}
         disabled={isSaving || isDeleting}
-        onPress={handleDeleteCategoryPress}>
+        onPress={handleDeleteCategoryPress}
+        accessibilityRole="button"
+        accessibilityLabel="Delete category">
         {isDeleting ? (
           <ActivityIndicator color="#b91c1c" />
         ) : (
-          <Text style={[screenStyles.secondaryButtonText, { color: '#b91c1c' }]}>
-            Delete Category
-          </Text>
+          <Text style={screenStyles.destructiveTextLink}>Delete category</Text>
         )}
       </Pressable>
     </KeyboardAvoidingView>

@@ -181,18 +181,15 @@ export default function EditRoomScreen() {
       </Pressable>
 
       <Pressable
-        style={[
-          screenStyles.secondaryButton,
-          { borderColor: '#b91c1c', opacity: isBusy ? 0.7 : 1 },
-        ]}
+        style={[screenStyles.destructiveTextLinkWrap, { opacity: isBusy ? 0.7 : 1 }]}
         disabled={isBusy}
-        onPress={handleDeleteRoomPress}>
+        onPress={handleDeleteRoomPress}
+        accessibilityRole="button"
+        accessibilityLabel="Delete room">
         {isDeleting ? (
           <ActivityIndicator color="#b91c1c" />
         ) : (
-          <Text style={[screenStyles.secondaryButtonText, { color: '#b91c1c' }]}>
-            Delete Room
-          </Text>
+          <Text style={screenStyles.destructiveTextLink}>Delete room</Text>
         )}
       </Pressable>
     </KeyboardAvoidingView>

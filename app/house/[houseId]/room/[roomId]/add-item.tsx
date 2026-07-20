@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, Text } from 'react-native';
 
 import ImagePickerField from '@/components/ImagePickerField';
+import CategoryDropdown from '@/components/CategoryDropdown';
 import KeyboardAwareFormScroll, {
   FormTextInput,
 } from '@/components/KeyboardAwareFormScroll';
@@ -146,30 +147,13 @@ export default function AddItemScreen() {
         />
 
         <Text style={[screenStyles.label, { color: colors.text }]}>Category</Text>
-        <Pressable
-          style={[screenStyles.rowButton, { borderColor: colors.border }]}
-          onPress={() => setSelectedCategoryId(null)}>
-          <Text style={{ color: colors.text }}>
-            {selectedCategoryId === null ? '✓ None' : 'None'}
-          </Text>
-        </Pressable>
-        {categories.map((category) => (
-          <Pressable
-            key={category.id}
-            style={[screenStyles.rowButton, { borderColor: colors.border }]}
-            onPress={() => setSelectedCategoryId(category.id)}>
-            <Text style={{ color: colors.text }}>
-              {selectedCategoryId === category.id ? `✓ ${category.name}` : category.name}
-            </Text>
-          </Pressable>
-        ))}
-        <Pressable
-          style={[screenStyles.secondaryButton, { borderColor: colors.border }]}
-          onPress={() => router.push('/categories')}>
-          <Text style={[screenStyles.secondaryButtonText, { color: colors.text }]}>
-            New / manage categories
-          </Text>
-        </Pressable>
+        <CategoryDropdown
+          categories={categories}
+          selectedCategoryId={selectedCategoryId}
+          onSelectCategoryId={setSelectedCategoryId}
+          onPressManageCategories={() => router.push('/categories')}
+          disabled={isSaving}
+        />
 
         <Text style={[screenStyles.label, { color: colors.text }]}>Purchase price (USD)</Text>
         <FormTextInput

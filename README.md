@@ -26,6 +26,7 @@ Cloud gateway deploy guide: [gas/README.md](gas/README.md).
 
 ### Photos
 - Camera or gallery capture via `expo-image-picker`
+- Settings preference for default source on empty photo taps (faster Add Item); changing an existing photo still shows camera / gallery / remove
 - Automatic downscale (max 1024px) and JPEG compression (quality 0.7)
 - Per-house photo folders on device
 - Thumbnails on room lists; full image on item detail
@@ -178,7 +179,7 @@ If a URL may have leaked, delete or replace the Apps Script deployment and updat
 | Rename / delete house | House → Edit House |
 | Rename / delete room | Room → Edit Room |
 | Delete item | Item detail → Delete Item |
-| Cloud URL | Header gear → Settings |
+| Cloud URL / photo default | Header gear → Settings |
 | PDF / CSV / Sheets | House → Export |
 | Pull from Sheets | House → Import |
 

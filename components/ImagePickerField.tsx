@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -8,14 +8,17 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useSQLiteContext } from 'expo-sqlite';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
+import { getAppSettings } from '@/db/settings';
 import {
   deleteLocalImageIfExists,
   pickDownscaleAndSaveItemImage,
   type ImageSourceChoice,
 } from '@/lib/images';
+import type { DefaultImageSource } from '@/types/inventory';
 
 type ImagePickerFieldProps = {
   /** Current local image URI, or null when empty. */
@@ -29,8 +32,9 @@ type ImagePickerFieldProps = {
 };
 
 /**
- * Tappable photo area with Camera / Gallery / Remove ActionSheet (Option A).
- * Analogy: a photo frame you tap to open a small menu of ways to fill it.
+ * Tappable photo area.
+ * Empty: opens Settings default (camera or gallery) immediately.
+ * Has photo: ActionSheet for camera / gallery / remove / cancel.
  */
 export default function ImagePickerField({
   imageUri,
@@ -40,7 +44,28 @@ export default function ImagePickerField({
 }: ImagePickerFieldProps) {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme];
+  const database = useSQLiteContext();
+
   const [isProcessingPhoto, setIsProcessingPhoto] = useState(false);
+  const [defaultImageSource, setDefaultImageSource] =
+    useState<DefaultImageSource>('camera');
+
+  useEffect(() => {
+    /**
+     * Loads the preferred empty-tap photo source from Settings.
+     */
+    async function loadDefaultImageSource() {
+      try {
+        const appSettings = await getAppSettings(database);
+        setDefaultImageSource(appSettings.defaultImageSource);
+      } catch (error) {
+        console.log('ImagePickerField settings load error:', error);
+        setDefaultImageSource('camera');
+      }
+    }
+
+    void loadDefaultImageSource();
+  }, [database]);
 
   /**
    * Runs the pick → downscale → save pipeline for camera or gallery.
@@ -99,18 +124,20 @@ export default function ImagePickerField({
   }
 
   /**
-   * Shows Camera / Gallery / Remove / Cancel choices (ActionSheet via Alert).
+   * Empty area: open preferred source. Existing photo: full ActionSheet.
    */
-  function handleOpenPhotoMenu() {
+  function handlePhotoAreaPress() {
     if (isProcessingPhoto) {
       return;
     }
 
-    const alertButtons: {
-      text: string;
-      style?: 'cancel' | 'destructive' | 'default';
-      onPress?: () => void;
-    }[] = [
+    // Faster Add Item path — no menu when there is nothing to remove yet.
+    if (imageUri === null) {
+      void handlePickFromSource(defaultImageSource);
+      return;
+    }
+
+    Alert.alert('Item photo', 'How would you like to change this picture?', [
       {
         text: 'Take photo',
         onPress: () => {
@@ -123,32 +150,31 @@ export default function ImagePickerField({
           void handlePickFromSource('gallery');
         },
       },
-    ];
-
-    if (imageUri !== null) {
-      alertButtons.push({
+      {
         text: 'Remove photo',
         style: 'destructive',
         onPress: () => {
           void handleRemovePhoto();
         },
-      });
-    }
-
-    alertButtons.push({
-      text: 'Cancel',
-      style: 'cancel',
-    });
-
-    Alert.alert('Item photo', 'How would you like to add a picture?', alertButtons);
+      },
+      {
+        text: 'Cancel',
+        style: 'cancel',
+      },
+    ]);
   }
+
+  const emptyStateHint =
+    defaultImageSource === 'gallery'
+      ? 'Tap to choose from gallery'
+      : 'Tap to take a photo';
 
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel="Add or change item photo"
       disabled={isProcessingPhoto}
-      onPress={handleOpenPhotoMenu}
+      onPress={handlePhotoAreaPress}
       style={[
         styles.frame,
         {
@@ -165,7 +191,7 @@ export default function ImagePickerField({
         <View style={styles.placeholderContent}>
           <Text style={[styles.placeholderTitle, { color: colors.text }]}>Add photo</Text>
           <Text style={[styles.placeholderHint, { color: colors.text }]}>
-            Tap to use camera or gallery
+            {emptyStateHint}
           </Text>
         </View>
       )}

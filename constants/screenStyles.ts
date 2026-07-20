@@ -94,4 +94,19 @@ export const screenStyles = StyleSheet.create({
     fontSize: 14,
     opacity: 0.75,
   },
+  /**
+   * Extra space before a quiet destructive text link (harder to fat-finger).
+   */
+  destructiveTextLinkWrap: {
+    marginTop: 36,
+    marginBottom: 8,
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  destructiveTextLink: {
+    color: '#b91c1c',
+    fontSize: 15,
+    fontWeight: '500',
+    textDecorationLine: 'underline',
+  },
 });

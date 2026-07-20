@@ -7,13 +7,12 @@ import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 import { screenStyles } from '@/constants/screenStyles';
 import { getCategoryById } from '@/db/categories';
-import { deleteItem, getItemById } from '@/db/items';
-import { confirmDestructiveAction } from '@/lib/confirmDestructiveAction';
-import { deleteLocalImageIfExists } from '@/lib/images';
+import { getItemById } from '@/db/items';
 import type { Item } from '@/types/inventory';
 
 /**
  * Item detail page (Feature 5) with full local photo when present.
+ * Delete lives on Edit Item to avoid accidental taps next to Edit / Back.
  */
 export default function ItemDetailScreen() {
   const {
@@ -37,8 +36,6 @@ export default function ItemDetailScreen() {
   const [item, setItem] = useState<Item | null>(null);
   const [categoryName, setCategoryName] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -76,38 +73,6 @@ export default function ItemDetailScreen() {
       };
     }, [database, itemId]),
   );
-
-  /**
-   * Confirms then removes the local photo file and SQLite item row.
-   */
-  function handleDeleteItemPress() {
-    if (item === null) {
-      return;
-    }
-
-    confirmDestructiveAction({
-      title: 'Delete item?',
-      message:
-        'This removes the item and its local photo from this phone. Google Sheet and Drive copies are not deleted.',
-      confirmLabel: 'Delete item',
-      onConfirm: () => {
-        void (async () => {
-          setIsDeleting(true);
-          setErrorMessage(null);
-
-          try {
-            await deleteLocalImageIfExists(item.localImagePath);
-            await deleteItem(database, item.id);
-            router.replace(`/house/${houseId}/room/${roomId}`);
-          } catch (error) {
-            console.log('ItemDetailScreen delete error:', error);
-            setErrorMessage('Could not delete item.');
-            setIsDeleting(false);
-          }
-        })();
-      },
-    });
-  }
 
   /**
    * Friendly label for how far this item has synced to Google Sheets.
@@ -197,16 +162,8 @@ export default function ItemDetailScreen() {
         Sync: {getSyncStatusLabel(item.syncStatus)}
       </Text>
 
-      {errorMessage !== null ? (
-        <Text style={screenStyles.errorText}>{errorMessage}</Text>
-      ) : null}
-
       <Pressable
-        style={[
-          screenStyles.primaryButton,
-          { backgroundColor: colors.tint, opacity: isDeleting ? 0.7 : 1 },
-        ]}
-        disabled={isDeleting}
+        style={[screenStyles.primaryButton, { backgroundColor: colors.tint }]}
         onPress={() =>
           router.push(`/house/${houseId}/room/${roomId}/item/${itemId}/edit`)
         }>
@@ -215,27 +172,10 @@ export default function ItemDetailScreen() {
 
       <Pressable
         style={[screenStyles.secondaryButton, { borderColor: colors.border }]}
-        disabled={isDeleting}
         onPress={() => router.push(`/house/${houseId}/room/${roomId}`)}>
         <Text style={[screenStyles.secondaryButtonText, { color: colors.text }]}>
           Back to Room
         </Text>
-      </Pressable>
-
-      <Pressable
-        style={[
-          screenStyles.secondaryButton,
-          { borderColor: '#b91c1c', opacity: isDeleting ? 0.7 : 1 },
-        ]}
-        disabled={isDeleting}
-        onPress={handleDeleteItemPress}>
-        {isDeleting ? (
-          <ActivityIndicator color="#b91c1c" />
-        ) : (
-          <Text style={[screenStyles.secondaryButtonText, { color: '#b91c1c' }]}>
-            Delete Item
-          </Text>
-        )}
       </Pressable>
     </ScrollView>
   );
