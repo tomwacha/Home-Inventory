@@ -79,3 +79,17 @@ export type HouseTotals = {
   itemCount: number;
   totalValueUsd: number;
 };
+
+/**
+ * One flattened inventory row for CSV/PDF export (room + category names included).
+ */
+export type ExportInventoryRow = {
+  roomName: string;
+  itemName: string;
+  brand: string;
+  categoryName: string;
+  purchasePriceUsd: number;
+  purchaseYear: string;
+  description: string;
+  localImagePath: string | null;
+};

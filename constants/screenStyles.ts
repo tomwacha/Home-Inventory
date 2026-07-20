@@ -8,6 +8,14 @@ export const screenStyles = StyleSheet.create({
     flex: 1,
     padding: 16,
   },
+  /**
+   * Use this for ScrollView contentContainerStyle — NOT container.
+   * flex: 1 on scroll content locks height to the screen and blocks scrolling.
+   */
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 40,
+  },
   title: {
     fontSize: 24,
     fontWeight: '700',
@@ -33,6 +41,7 @@ export const screenStyles = StyleSheet.create({
   },
   textArea: {
     minHeight: 96,
+    maxHeight: 160,
     textAlignVertical: 'top',
   },
   primaryButton: {

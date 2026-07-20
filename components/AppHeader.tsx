@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { usePathname, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   FlatList,
   Modal,
@@ -31,34 +31,37 @@ export default function AppHeader({ showHouseSelector = true }: AppHeaderProps) 
   const colors = Colors[colorScheme];
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const pathname = usePathname();
   const database = useSQLiteContext();
 
   const [houses, setHouses] = useState<House[]>([]);
   const [isSelectorOpen, setIsSelectorOpen] = useState(false);
 
-  // Reload the house list whenever the screen under the header gains focus.
-  useFocusEffect(
-    useCallback(() => {
-      let isStillFocused = true;
+  /**
+   * Loads the latest houses from SQLite into the dropdown.
+   */
+  const loadHouses = useCallback(async () => {
+    try {
+      const loadedHouses = await getAllHouses(database);
+      setHouses(loadedHouses);
+    } catch (error) {
+      console.log('AppHeader failed to load houses:', error);
+    }
+  }, [database]);
 
-      async function loadHouses() {
-        try {
-          const loadedHouses = await getAllHouses(database);
-          if (isStillFocused) {
-            setHouses(loadedHouses);
-          }
-        } catch (error) {
-          console.log('AppHeader failed to load houses:', error);
-        }
-      }
+  // Header sits outside Stack screens, so useFocusEffect is unreliable.
+  // Reload whenever the route changes (e.g. after Add House) and on first mount.
+  useEffect(() => {
+    void loadHouses();
+  }, [loadHouses, pathname]);
 
-      loadHouses();
-
-      return () => {
-        isStillFocused = false;
-      };
-    }, [database]),
-  );
+  /**
+   * Opens the dropdown after refreshing the house list.
+   */
+  function handleOpenSelector() {
+    void loadHouses();
+    setIsSelectorOpen(true);
+  }
 
   /**
    * Opens the selected house main page and closes the dropdown.
@@ -85,7 +88,7 @@ export default function AppHeader({ showHouseSelector = true }: AppHeaderProps) 
       {showHouseSelector ? (
         <TouchableOpacity
           style={[styles.selector, { borderColor: colors.border }]}
-          onPress={() => setIsSelectorOpen(true)}
+          onPress={handleOpenSelector}
           accessibilityLabel="Select house">
           <Text style={[styles.selectorText, { color: colors.text }]}>
             {houses.length > 0 ? 'Select house' : 'No houses'}

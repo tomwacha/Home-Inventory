@@ -1,6 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import type {
+  ExportInventoryRow,
   HouseTotals,
   Item,
   NewItemInput,
@@ -258,4 +259,53 @@ export async function getHouseTotals(
     itemCount: row?.item_count ?? 0,
     totalValueUsd: row?.total_value_usd ?? 0,
   };
+}
+
+type ExportInventoryRowSql = {
+  room_name: string;
+  item_name: string;
+  brand: string | null;
+  category_name: string | null;
+  purchase_price_usd: number;
+  purchase_year: number | null;
+  description: string | null;
+  local_image_path: string | null;
+};
+
+/**
+ * Loads every item in a house with room/category names for CSV and PDF export.
+ * Sorted by room name, then item name.
+ */
+export async function getExportRowsForHouse(
+  database: SQLiteDatabase,
+  houseId: number,
+): Promise<ExportInventoryRow[]> {
+  const rows = await database.getAllAsync<ExportInventoryRowSql>(
+    `SELECT
+      rooms.name AS room_name,
+      items.name AS item_name,
+      items.brand AS brand,
+      categories.name AS category_name,
+      items.purchase_price_usd AS purchase_price_usd,
+      items.purchase_year AS purchase_year,
+      items.description AS description,
+      items.local_image_path AS local_image_path
+     FROM items
+     INNER JOIN rooms ON rooms.id = items.room_id
+     LEFT JOIN categories ON categories.id = items.category_id
+     WHERE rooms.house_id = ?
+     ORDER BY rooms.name COLLATE NOCASE ASC, items.name COLLATE NOCASE ASC`,
+    houseId,
+  );
+
+  return rows.map((row) => ({
+    roomName: row.room_name,
+    itemName: row.item_name,
+    brand: row.brand ?? '',
+    categoryName: row.category_name ?? '',
+    purchasePriceUsd: row.purchase_price_usd,
+    purchaseYear: row.purchase_year !== null ? String(row.purchase_year) : '',
+    description: row.description ?? '',
+    localImagePath: row.local_image_path,
+  }));
 }

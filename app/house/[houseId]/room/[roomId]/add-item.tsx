@@ -1,26 +1,22 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useState } from 'react';
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, Text } from 'react-native';
 
+import ImagePickerField from '@/components/ImagePickerField';
+import KeyboardAwareFormScroll, {
+  FormTextInput,
+} from '@/components/KeyboardAwareFormScroll';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 import { screenStyles } from '@/constants/screenStyles';
 import { getAllCategories } from '@/db/categories';
+import { getHouseById } from '@/db/houses';
 import { createItem } from '@/db/items';
 import type { Category } from '@/types/inventory';
 
 /**
- * Add Item form (Feature 7). Photo capture comes in Milestone 2.
+ * Add Item form (Feature 7) with camera/gallery photo capture (Feature 11).
  */
 export default function AddItemScreen() {
   const { houseId: houseIdParam, roomId: roomIdParam } = useLocalSearchParams<{
@@ -36,12 +32,14 @@ export default function AddItemScreen() {
   const router = useRouter();
 
   const [categories, setCategories] = useState<Category[]>([]);
+  const [houseFolderPath, setHouseFolderPath] = useState('');
   const [itemName, setItemName] = useState('');
   const [brand, setBrand] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [purchasePriceText, setPurchasePriceText] = useState('');
   const [purchaseYearText, setPurchaseYearText] = useState('');
   const [description, setDescription] = useState('');
+  const [localImagePath, setLocalImagePath] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -49,23 +47,26 @@ export default function AddItemScreen() {
     useCallback(() => {
       let isStillFocused = true;
 
-      async function loadCategories() {
+      async function loadCategoriesAndHouseFolder() {
         try {
           const loadedCategories = await getAllCategories(database);
+          const loadedHouse = await getHouseById(database, houseId);
+
           if (isStillFocused) {
             setCategories(loadedCategories);
+            setHouseFolderPath(loadedHouse?.folderPath ?? '');
           }
         } catch (error) {
           console.log('AddItemScreen category load error:', error);
         }
       }
 
-      loadCategories();
+      loadCategoriesAndHouseFolder();
 
       return () => {
         isStillFocused = false;
       };
-    }, [database]),
+    }, [database, houseId]),
   );
 
   async function handleSaveItem() {
@@ -102,6 +103,7 @@ export default function AddItemScreen() {
         purchasePriceUsd: purchasePriceText.trim().length > 0 ? purchasePriceUsd : 0,
         purchaseYear,
         description: description.trim().length > 0 ? description.trim() : null,
+        localImagePath,
       });
 
       router.replace(`/house/${houseId}/room/${roomId}/item/${createdItem.id}`);
@@ -113,24 +115,18 @@ export default function AddItemScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: colors.background }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={screenStyles.container}>
+    <KeyboardAwareFormScroll backgroundColor={colors.background}>
         <Text style={[screenStyles.title, { color: colors.text }]}>Add Item</Text>
 
-        <View
-          style={[
-            screenStyles.secondaryButton,
-            { borderColor: colors.border, marginTop: 0, paddingVertical: 40 },
-          ]}>
-          <Text style={[screenStyles.metaText, { color: colors.text, textAlign: 'center' }]}>
-            Photo placeholder — camera/gallery arrives in Milestone 2.
-          </Text>
-        </View>
+        <ImagePickerField
+          imageUri={localImagePath}
+          houseFolderPath={houseFolderPath}
+          onImageChange={setLocalImagePath}
+          onError={setErrorMessage}
+        />
 
         <Text style={[screenStyles.label, { color: colors.text }]}>Name</Text>
-        <TextInput
+        <FormTextInput
           value={itemName}
           onChangeText={setItemName}
           style={[
@@ -140,7 +136,7 @@ export default function AddItemScreen() {
         />
 
         <Text style={[screenStyles.label, { color: colors.text }]}>Brand</Text>
-        <TextInput
+        <FormTextInput
           value={brand}
           onChangeText={setBrand}
           style={[
@@ -176,7 +172,7 @@ export default function AddItemScreen() {
         </Pressable>
 
         <Text style={[screenStyles.label, { color: colors.text }]}>Purchase price (USD)</Text>
-        <TextInput
+        <FormTextInput
           value={purchasePriceText}
           onChangeText={setPurchasePriceText}
           keyboardType="decimal-pad"
@@ -187,7 +183,7 @@ export default function AddItemScreen() {
         />
 
         <Text style={[screenStyles.label, { color: colors.text }]}>Purchase year</Text>
-        <TextInput
+        <FormTextInput
           value={purchaseYearText}
           onChangeText={setPurchaseYearText}
           keyboardType="number-pad"
@@ -198,10 +194,11 @@ export default function AddItemScreen() {
         />
 
         <Text style={[screenStyles.label, { color: colors.text }]}>Description</Text>
-        <TextInput
+        <FormTextInput
           value={description}
           onChangeText={setDescription}
           multiline
+          scrollEnabled
           style={[
             screenStyles.input,
             screenStyles.textArea,
@@ -233,7 +230,6 @@ export default function AddItemScreen() {
           onPress={() => router.back()}>
           <Text style={[screenStyles.secondaryButtonText, { color: colors.text }]}>Cancel</Text>
         </Pressable>
-      </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardAwareFormScroll>
   );
 }

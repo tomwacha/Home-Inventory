@@ -100,8 +100,8 @@ assets/           App icons and splash images
 | Language | TypeScript (strict) |
 | Navigation | Expo Router |
 | Local storage | expo-sqlite + expo-file-system |
-| Images | expo-image-picker + expo-image-manipulator |
-| Export | expo-print (PDF) + expo-sharing |
+| Images | expo-image-picker + expo-image-manipulator (max 1024px, JPEG 0.7) |
+| Export | expo-print (PDF) + expo-sharing + local CSV |
 | Cloud sync | Google Apps Script → Sheets + Drive |
 
 ## License

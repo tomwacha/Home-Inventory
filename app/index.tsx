@@ -1,4 +1,4 @@
-import { Link, useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useState } from 'react';
 import {
@@ -71,13 +71,13 @@ export default function WelcomeScreen() {
         Track your possessions for insurance claims — fully offline on your device.
       </Text>
 
-      <Link href="/add-house" asChild>
-        <Pressable
-          style={[screenStyles.primaryButton, { backgroundColor: colors.tint }]}
-          accessibilityRole="button">
-          <Text style={screenStyles.primaryButtonText}>Add House</Text>
-        </Pressable>
-      </Link>
+      {/* Pressable + router.push (not Link asChild) so Android paints the blue button. */}
+      <Pressable
+        style={[screenStyles.primaryButton, { backgroundColor: colors.tint }]}
+        accessibilityRole="button"
+        onPress={() => router.push('/add-house')}>
+        <Text style={screenStyles.primaryButtonText}>Add House</Text>
+      </Pressable>
 
       <Text style={[screenStyles.label, { color: colors.text }]}>View House</Text>
 

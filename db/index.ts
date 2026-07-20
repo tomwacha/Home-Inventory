@@ -36,6 +36,7 @@ export {
   deleteItem,
   searchItemsInHouse,
   getHouseTotals,
+  getExportRowsForHouse,
 } from '@/db/items';
 
 export { getAppSettings, updateAppSettings } from '@/db/settings';

@@ -252,6 +252,14 @@ export default function HouseMainScreen() {
           )}
         />
       )}
+
+      <Pressable
+        style={[screenStyles.secondaryButton, { borderColor: colors.border }]}
+        onPress={() => router.replace('/')}>
+        <Text style={[screenStyles.secondaryButtonText, { color: colors.text }]}>
+          Back to Welcome
+        </Text>
+      </Pressable>
     </View>
   );
 }

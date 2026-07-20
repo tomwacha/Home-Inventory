@@ -1,7 +1,7 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
@@ -11,7 +11,7 @@ import { getItemById } from '@/db/items';
 import type { Item } from '@/types/inventory';
 
 /**
- * Item detail page (Feature 5).
+ * Item detail page (Feature 5) with full local photo when present.
  */
 export default function ItemDetailScreen() {
   const {
@@ -100,15 +100,29 @@ export default function ItemDetailScreen() {
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
       contentContainerStyle={screenStyles.container}>
-      <View
-        style={[
-          screenStyles.secondaryButton,
-          { borderColor: colors.border, marginTop: 0, paddingVertical: 48 },
-        ]}>
-        <Text style={[screenStyles.metaText, { color: colors.text, textAlign: 'center' }]}>
-          {item.localImagePath ? 'Photo on device' : 'No photo yet (Milestone 2)'}
-        </Text>
-      </View>
+      {item.localImagePath !== null ? (
+        <Image
+          source={{ uri: item.localImagePath }}
+          style={{
+            width: '100%',
+            height: 260,
+            borderRadius: 12,
+            marginBottom: 12,
+            backgroundColor: colors.headerBackground,
+          }}
+          resizeMode="cover"
+        />
+      ) : (
+        <View
+          style={[
+            screenStyles.secondaryButton,
+            { borderColor: colors.border, marginTop: 0, paddingVertical: 48 },
+          ]}>
+          <Text style={[screenStyles.metaText, { color: colors.text, textAlign: 'center' }]}>
+            No photo yet — tap Edit Item to add one.
+          </Text>
+        </View>
+      )}
 
       <Text style={[screenStyles.title, { color: colors.text }]}>{item.name}</Text>
       <Text style={[screenStyles.metaText, { color: colors.text }]}>

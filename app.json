@@ -24,7 +24,8 @@
         "CAMERA",
         "READ_MEDIA_IMAGES",
         "INTERNET"
-      ]
+      ],
+      "softwareKeyboardLayoutMode": "resize"
     },
     "web": {
       "bundler": "metro",
@@ -42,7 +43,15 @@
         }
       ],
       "expo-asset",
-      "expo-sqlite"
+      "expo-sqlite",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Home Inventory to access your photos so you can attach item pictures.",
+          "cameraPermission": "Allow Home Inventory to use the camera so you can photograph items for insurance records.",
+          "microphonePermission": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
