@@ -19,15 +19,16 @@ Cloud gateway deploy guide: [gas/README.md](gas/README.md).
 
 ### Inventory management
 - Multiple houses, rooms, and items with categories
-- Search items by name or description within a house (and within a room)
-- House totals (rooms, item count, and purchase value)
-- Per-house insurance policies (company, phone, policy number, expiration, declarations photo) — **local only**; not included in Sheets/Drive sync or PDF/CSV export. Manage from House → **View Policies**.
+- Search items by name or description within a house, and within a single room
+- House totals on the house page (rooms, item count, and purchase value)
+- Required-name fields marked with `*` on house, room, item, category, and policy forms
+- Per-house insurance policies (company, phone, policy number, expiration, declarations photo) — **local only**; not included in Sheets/Drive sync or PDF/CSV export. Manage from House → **View Policies**
 - Edit screens to rename houses, rooms, and categories
 - Confirmed local delete for houses, rooms, items, categories, and policies
 
 ### Photos
 - Camera or gallery capture via `expo-image-picker`
-- Settings preference for default source on empty photo taps (faster Add Item); changing an existing photo still shows camera / gallery / remove
+- Settings → **Default photo source** for empty photo taps (faster Add Item); changing an existing photo still shows camera / gallery / remove
 - Automatic downscale (max 1024px) and JPEG compression (quality 0.7)
 - Per-house photo folders on device
 - Thumbnails on room lists; full image on item detail
@@ -38,7 +39,8 @@ Cloud gateway deploy guide: [gas/README.md](gas/README.md).
 - System share sheet (`expo-sharing`) for email, Drive, Files, etc.
 
 ### Cloud sync (optional)
-- Settings screen (header gear) for Web App URL and Drive folder id
+- Settings → **Cloud Sync Settings** for Web App URL and Drive folder id (separate from photo defaults)
+- Settings footer shows the app version from `app.json`
 - Export → Google Sheets: upload rows + photos; duplicate skip/override prompt
 - Import → merge Sheet rows for the current house into SQLite (does not wipe phone-only items)
 - Sync status shown on item detail (`Local only` / `Synced`)
@@ -175,13 +177,15 @@ If a URL may have leaked, delete or replace the Apps Script deployment and updat
 |------|--------|
 | Add a house | Welcome → Add House |
 | Open a house | Welcome list, or header **Select house** |
-| Add rooms / items | House → Add Room → Add Item |
+| Add rooms / items | House → Add Room → room → Add Item |
+| Add another item in the same room | Item detail → Add Item |
+| Search within a room | Room page search box (above Add Item) |
 | Manage categories | House → Manage Categories |
 | Rename / delete house | House → Edit House |
 | Insurance policies (local) | House → View Policies |
 | Rename / delete room | Room → Edit Room |
 | Delete item | Item detail → Edit Item → Delete item |
-| Cloud URL / photo default | Header gear → Settings |
+| Photo default / cloud URL / app version | Header gear → Settings |
 | PDF / CSV / Sheets | House → Export |
 | Pull from Sheets | House → Import |
 
@@ -199,7 +203,7 @@ types/               Shared TypeScript contracts (inventory + gasSync)
 gas/                 Apps Script source + deploy docs
 __tests__/           Jest unit tests and light screen smoke tests
 assets/              App icons and splash
-.cursor/rules/       Cursor agent guidance (mentor, stack, secrets)
+.cursor/rules/       Cursor agent guidance (mentor, stack, secrets, version sync)
 ```
 
 ---
@@ -233,21 +237,7 @@ Conventions:
 - Keyboard-heavy forms: `KeyboardAwareFormScroll` / `FormTextInput`
 - Android soft keyboard: `softwareKeyboardLayoutMode: "resize"` in `app.json`
 - Secrets checklist for agents and contributors: `.cursor/rules/secrets-and-google-exposure.mdc`
-
----
-
-## Roadmap status
-
-Phase 1 milestones from the product brief are implemented:
-
-| Milestone | Status |
-|-----------|--------|
-| 1 — Local UI + SQLite | Complete |
-| 2 — Camera, images, PDF/CSV | Complete |
-| 3 — GAS gateway + two-way sync | Complete |
-| 4 — Polish (edit/delete, sorting, docs) | Complete |
-
-Accepted Milestone 3 UX choices: Import is an explicit screen action (not pull-to-refresh); Drive folder id is configured in Settings / Script properties (not an in-app folder picker).
+- Keep `app.json` and `package.json` versions in sync when shipping user-facing changes (Settings displays the Expo/`app.json` version)
 
 ---
 
