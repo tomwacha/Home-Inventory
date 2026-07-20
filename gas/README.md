@@ -77,9 +77,32 @@ Then try:
 Paste the Web App URL into:
 
 - Local `.env` as `EXPO_PUBLIC_GAS_WEB_APP_URL=...` (see [`.env.example`](../.env.example)), and/or  
+- Optional private notes file: copy [`secrets.local.md.example`](./secrets.local.md.example) → `secrets.local.md` (gitignored)  
 - The in-app settings row (`app_settings.gas_web_app_url`) when `m3-sync` adds a Settings UI.
 
-**Never commit a real deployment URL or secrets into git** if you consider the Sheet private — treat the URL like an API key (anyone with the link can call it).
+## Secrets checklist (treat like API keys)
+
+Anyone with your Web App `/exec` URL can call the gateway. Keep Sheet links, Drive folder ids, and the Web App URL **private**.
+
+### Never put real values in
+- [ ] Git commits / pull requests / GitHub issues or discussions  
+- [ ] `gas/README.md`, `.env.example`, or other tracked docs (placeholders only)  
+- [ ] Screenshots, Slack/Discord, email threads, or public chat with Cursor/agents if the log might be shared  
+- [ ] App store listings or public demo videos that zoom on Deploy → URL  
+
+### Safe places for real values
+- [ ] Local `.env` (already gitignored) — see [`.env.example`](../.env.example)  
+- [ ] Optional `gas/secrets.local.md` (gitignored; start from `secrets.local.md.example`)  
+- [ ] Apps Script **Script properties** (`DRIVE_FOLDER_ID`)  
+- [ ] A password manager note labeled “Home Inventory GAS”  
+
+### After deploy, verify
+- [ ] `git status` does **not** show `.env` or `secrets.local.md` as new tracked files  
+- [ ] Repo search / PR diff has no `script.google.com/macros/s/` live ids  
+- [ ] Browser smoke tests use your private URL; you don’t paste that full URL into commits  
+
+### Expo note (beginner-friendly)
+`EXPO_PUBLIC_…` values are kept out of git, but they **are baked into the app binary**. Fine for a personal build you don’t redistribute widely — still don’t post the URL online.
 
 ## Security note (beginner-friendly)
 

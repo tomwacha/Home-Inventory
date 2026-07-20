@@ -4,6 +4,7 @@
 .env.development
 .env.production
 .env*.local
+gas/secrets.local.md
 
 # Dependencies
 node_modules/
