@@ -1,0 +1,22 @@
+---
+description: Keep app.json and package.json version in sync when shipping to main
+alwaysApply: true
+---
+
+# App version bumps
+
+Settings shows `Constants.expoConfig.version` from **`app.json`**. Keep **`package.json` `"version"`** identical whenever you bump.
+
+## When to bump
+
+- As part of a PR (or follow-up commit) that **ships user-facing changes** intended for `main` — not after merge (the agent is not at merge time).
+- Skip for docs-only, comment-only, or internal tooling unless the user asks.
+- If semver level is unclear, **ask**: patch (fixes/polish), minor (features), major (breaking).
+
+## How
+
+1. Update `"expo"."version"` in `app.json`.
+2. Update `"version"` in `package.json` to the same string.
+3. Mention the new version in the PR summary when relevant.
+
+Do **not** invent a bump mid-feature work unless the user asks to cut a version.

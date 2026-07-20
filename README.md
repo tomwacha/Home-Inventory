@@ -19,10 +19,11 @@ Cloud gateway deploy guide: [gas/README.md](gas/README.md).
 
 ### Inventory management
 - Multiple houses, rooms, and items with categories
-- Search items by name or description within a house
-- House totals (item count and purchase value)
+- Search items by name or description within a house (and within a room)
+- House totals (rooms, item count, purchase value, and policy count)
+- Per-house insurance policies (company, phone, policy number, expiration, declarations photo) — **local only**; not included in Sheets/Drive sync or PDF/CSV export. Manage from House → **View Policies**.
 - Edit screens to rename houses, rooms, and categories
-- Confirmed local delete for houses, rooms, items, and categories
+- Confirmed local delete for houses, rooms, items, categories, and policies
 
 ### Photos
 - Camera or gallery capture via `expo-image-picker`
@@ -177,8 +178,9 @@ If a URL may have leaked, delete or replace the Apps Script deployment and updat
 | Add rooms / items | House → Add Room → Add Item |
 | Manage categories | House → Manage Categories |
 | Rename / delete house | House → Edit House |
+| Insurance policies (local) | House → View Policies |
 | Rename / delete room | Room → Edit Room |
-| Delete item | Item detail → Delete Item |
+| Delete item | Item detail → Edit Item → Delete item |
 | Cloud URL / photo default | Header gear → Settings |
 | PDF / CSV / Sheets | House → Export |
 | Pull from Sheets | House → Import |
@@ -191,7 +193,7 @@ If a URL may have leaked, delete or replace the Apps Script deployment and updat
 app/                 Expo Router screens
 components/          Shared UI (header, form scroll helpers, image picker)
 constants/           Colors and shared StyleSheet tokens
-db/                  SQLite schema helpers (houses, rooms, items, categories, settings)
+db/                  SQLite schema helpers (houses, rooms, items, categories, settings, insurance policies)
 lib/                 Pure helpers (images, export, GAS client, import, confirms)
 types/               Shared TypeScript contracts (inventory + gasSync)
 gas/                 Apps Script source + deploy docs

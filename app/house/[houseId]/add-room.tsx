@@ -67,7 +67,7 @@ export default function AddRoomScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Text style={[screenStyles.title, { color: colors.text }]}>Add Room</Text>
 
-      <Text style={[screenStyles.label, { color: colors.text }]}>Room name</Text>
+      <Text style={[screenStyles.label, { color: colors.text }]}>Room name *</Text>
       <TextInput
         value={roomName}
         onChangeText={setRoomName}

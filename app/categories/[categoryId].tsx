@@ -133,7 +133,7 @@ export default function EditCategoryScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Text style={[screenStyles.title, { color: colors.text }]}>Edit Category</Text>
 
-      <Text style={[screenStyles.label, { color: colors.text }]}>Category name</Text>
+      <Text style={[screenStyles.label, { color: colors.text }]}>Category name *</Text>
       <TextInput
         value={categoryName}
         onChangeText={setCategoryName}

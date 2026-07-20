@@ -1,3 +1,4 @@
+import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
@@ -14,6 +15,13 @@ import { getEnvGasDefaults, pingGas } from '@/lib/gasClient';
 import type { DefaultImageSource } from '@/types/inventory';
 
 /**
+ * Reads the display version from app.json (via Expo), with a safe fallback.
+ */
+function getAppDisplayVersion(): string {
+  return Constants.expoConfig?.version ?? '1.0.0';
+}
+
+/**
  * App Settings: cloud sync URL/folder + default photo source for empty taps.
  */
 export default function SettingsScreen() {
@@ -21,6 +29,7 @@ export default function SettingsScreen() {
   const colors = Colors[colorScheme];
   const database = useSQLiteContext();
   const router = useRouter();
+  const appDisplayVersion = getAppDisplayVersion();
 
   const [webAppUrl, setWebAppUrl] = useState('');
   const [driveFolderId, setDriveFolderId] = useState('');
@@ -124,12 +133,8 @@ export default function SettingsScreen() {
   return (
     <KeyboardAwareFormScroll backgroundColor={colors.background}>
       <Text style={[screenStyles.title, { color: colors.text }]}>Settings</Text>
-      <Text style={[screenStyles.subtitle, { color: colors.text }]}>
-        Cloud sync credentials and photo defaults for this phone. Treat the Web App
-        URL like a private key — do not share it.
-      </Text>
 
-      <Text style={[screenStyles.label, { color: colors.text }]}>
+      <Text style={[screenStyles.sectionHeading, { color: colors.text }]}>
         Default photo source
       </Text>
       <Text style={[screenStyles.metaText, { color: colors.text, marginBottom: 8 }]}>
@@ -172,6 +177,16 @@ export default function SettingsScreen() {
           {defaultImageSource === 'gallery' ? '✓ Gallery' : 'Gallery'}
         </Text>
       </Pressable>
+
+      <View style={[screenStyles.sectionDivider, { backgroundColor: colors.border }]} />
+
+      <Text style={[screenStyles.sectionHeading, { color: colors.text }]}>
+        Cloud Sync Settings
+      </Text>
+      <Text style={[screenStyles.metaText, { color: colors.text, marginBottom: 8 }]}>
+        Store your Google Apps Script Web App URL and optional Drive folder id on
+        this phone. Treat the URL like a private key — do not share it.
+      </Text>
 
       <Text style={[screenStyles.label, { color: colors.text }]}>
         Web App URL (/exec)
@@ -266,6 +281,14 @@ export default function SettingsScreen() {
           Back
         </Text>
       </Pressable>
+
+      <Text
+        style={[
+          screenStyles.metaText,
+          { color: colors.text, marginTop: 24, textAlign: 'center' },
+        ]}>
+        App version {appDisplayVersion}
+      </Text>
     </KeyboardAwareFormScroll>
   );
 }

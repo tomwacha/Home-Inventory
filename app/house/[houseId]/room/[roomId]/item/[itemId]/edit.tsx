@@ -198,7 +198,7 @@ export default function EditItemScreen() {
           onError={setErrorMessage}
         />
 
-        <Text style={[screenStyles.label, { color: colors.text }]}>Name</Text>
+        <Text style={[screenStyles.label, { color: colors.text }]}>Name *</Text>
         <FormTextInput
           value={itemName}
           onChangeText={setItemName}

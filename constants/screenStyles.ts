@@ -109,4 +109,16 @@ export const screenStyles = StyleSheet.create({
     fontWeight: '500',
     textDecorationLine: 'underline',
   },
+  sectionHeading: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  sectionDivider: {
+    height: 1,
+    marginTop: 28,
+    marginBottom: 20,
+    opacity: 0.35,
+  },
 });

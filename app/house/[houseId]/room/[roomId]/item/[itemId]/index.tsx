@@ -172,6 +172,14 @@ export default function ItemDetailScreen() {
 
       <Pressable
         style={[screenStyles.secondaryButton, { borderColor: colors.border }]}
+        onPress={() => router.push(`/house/${houseId}/room/${roomId}/add-item`)}>
+        <Text style={[screenStyles.secondaryButtonText, { color: colors.text }]}>
+          Add Item
+        </Text>
+      </Pressable>
+
+      <Pressable
+        style={[screenStyles.secondaryButton, { borderColor: colors.border }]}
         onPress={() => router.push(`/house/${houseId}/room/${roomId}`)}>
         <Text style={[screenStyles.secondaryButtonText, { color: colors.text }]}>
           Back to Room

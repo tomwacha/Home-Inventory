@@ -238,6 +238,41 @@ export async function searchItemsInHouse(
 }
 
 /**
+ * Searches items in one room by name or description.
+ */
+export async function searchItemsInRoom(
+  database: SQLiteDatabase,
+  roomId: number,
+  searchText: string,
+): Promise<Item[]> {
+  const trimmedSearchText = searchText.trim();
+
+  // Empty search returns nothing; callers fall back to the full room list.
+  if (trimmedSearchText.length === 0) {
+    return [];
+  }
+
+  const likePattern = `%${trimmedSearchText}%`;
+
+  const rows = await database.getAllAsync<ItemRow>(
+    `SELECT
+      id, room_id, name, brand, category_id,
+      purchase_price_usd, purchase_year, description,
+      local_image_path, drive_image_url, sheet_row_id,
+      updated_at, sync_status
+     FROM items
+     WHERE room_id = ?
+       AND (name LIKE ? OR IFNULL(description, '') LIKE ?)
+     ORDER BY name COLLATE NOCASE ASC`,
+    roomId,
+    likePattern,
+    likePattern,
+  );
+
+  return rows.map(mapItemRowToItem);
+}
+
+/**
  * Computes item count and total purchase value for a house (Feature 3 header).
  */
 export async function getHouseTotals(
