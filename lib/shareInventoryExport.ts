@@ -4,7 +4,12 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 
 import { buildInventoryCsv } from '@/lib/exportCsv';
-import { buildInventoryPdfHtml, type ExportPdfItemBlock } from '@/lib/exportPdf';
+import {
+  buildInventoryPdfHtml,
+  PDF_LANDSCAPE_LETTER_HEIGHT,
+  PDF_LANDSCAPE_LETTER_WIDTH,
+  type ExportPdfItemBlock,
+} from '@/lib/exportPdf';
 import { buildSafeHouseFolderName } from '@/lib/houseFolders';
 import type { ExportInventoryRow } from '@/types/inventory';
 
@@ -38,7 +43,7 @@ async function readLocalImageAsDataUri(localImagePath: string | null): Promise<s
 }
 
 /**
- * Builds PDF item blocks with optional embedded photos (Option A).
+ * Builds PDF item blocks with every local photo embedded (primary first).
  */
 export async function buildPdfItemsWithImages(
   rows: ExportInventoryRow[],
@@ -46,11 +51,26 @@ export async function buildPdfItemsWithImages(
   const pdfItems: ExportPdfItemBlock[] = [];
 
   for (const row of rows) {
-    const imageDataUri = await readLocalImageAsDataUri(row.localImagePath);
+    const sourcePaths =
+      row.localImagePaths.length > 0
+        ? row.localImagePaths
+        : row.localImagePath !== null
+          ? [row.localImagePath]
+          : [];
+
+    const imageDataUris: string[] = [];
+
+    for (const localImagePath of sourcePaths) {
+      const imageDataUri = await readLocalImageAsDataUri(localImagePath);
+
+      if (imageDataUri !== null) {
+        imageDataUris.push(imageDataUri);
+      }
+    }
 
     pdfItems.push({
       ...row,
-      imageDataUri,
+      imageDataUris,
     });
   }
 
@@ -99,7 +119,7 @@ export async function createAndShareInventoryExport(options: {
     return;
   }
 
-  // PDF path: embed photos into HTML, then let expo-print write a file.
+  // PDF path: landscape Letter 2×2 grid + Option 5 multi-photo sheets.
   const pdfItems = await buildPdfItemsWithImages(rows);
   const generatedAtLabel = new Date().toLocaleString();
   const htmlDocument = buildInventoryPdfHtml({
@@ -110,6 +130,8 @@ export async function createAndShareInventoryExport(options: {
 
   const printResult = await Print.printToFileAsync({
     html: htmlDocument,
+    width: PDF_LANDSCAPE_LETTER_WIDTH,
+    height: PDF_LANDSCAPE_LETTER_HEIGHT,
   });
 
   await Sharing.shareAsync(printResult.uri, {

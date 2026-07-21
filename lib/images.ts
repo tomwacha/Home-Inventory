@@ -3,6 +3,10 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 
+import {
+  buildStagedItemImageFileName,
+} from '@/lib/itemImageFiles';
+
 /** Longest side after downscale (Feature 11). */
 export const MAX_IMAGE_DIMENSION_PX = 1024;
 
@@ -12,11 +16,11 @@ export const JPEG_COMPRESS_QUALITY = 0.7;
 export type ImageSourceChoice = 'camera' | 'gallery';
 
 /**
- * Builds a unique JPEG file name for an item photo.
- * Analogy: a sticky label with a timestamp so two photos never share a name.
+ * Builds a temporary JPEG name used before the photo has a database id.
+ * Kept for older call sites / import staging; prefer buildStagedItemImageFileName.
  */
 export function buildItemImageFileName(nowMs: number = Date.now()): string {
-  return `item-${nowMs}.jpg`;
+  return buildStagedItemImageFileName(nowMs);
 }
 
 /**

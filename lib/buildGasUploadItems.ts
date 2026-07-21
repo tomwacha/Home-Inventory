@@ -1,7 +1,7 @@
 // SDK 54: classic FileSystem API lives under /legacy.
 import * as FileSystem from 'expo-file-system/legacy';
 
-import type { GasUploadItem } from '@/types/gasSync';
+import type { GasItemImagePayload, GasUploadItem } from '@/types/gasSync';
 import type { SyncInventoryRow } from '@/types/inventory';
 
 /**
@@ -32,8 +32,8 @@ async function readLocalImageAsBase64(
 }
 
 /**
- * Turns sync rows into GAS upload items (images already Base64).
- * Analogy: packing each inventory card into an envelope the cloud receptionist understands.
+ * Turns sync rows into GAS upload items (every photo Base64 when local).
+ * Analogy: packing each inventory card — and every photo sticky — into an envelope.
  */
 export async function buildGasUploadItems(
   houseName: string,
@@ -42,7 +42,26 @@ export async function buildGasUploadItems(
   const uploadItems: GasUploadItem[] = [];
 
   for (const syncRow of syncRows) {
-    const imageBase64 = await readLocalImageAsBase64(syncRow.localImagePath);
+    const images: GasItemImagePayload[] = [];
+
+    for (let imageIndex = 0; imageIndex < syncRow.images.length; imageIndex += 1) {
+      const itemImage = syncRow.images[imageIndex];
+      const imageBase64 = await readLocalImageAsBase64(itemImage.localPath);
+
+      images.push({
+        imageId: itemImage.id,
+        imageNumber: imageIndex + 1,
+        sortOrder: itemImage.sortOrder,
+        isPrimary: itemImage.isPrimary,
+        imageBase64,
+        imageMimeType: 'image/jpeg',
+        driveImageUrl: itemImage.driveImageUrl,
+      });
+    }
+
+    // Compat: singular Base64 is the primary photo (or first when flags are missing).
+    const primaryImage =
+      images.find((image) => image.isPrimary) ?? images[0] ?? null;
 
     uploadItems.push({
       clientItemId: syncRow.itemId,
@@ -51,12 +70,14 @@ export async function buildGasUploadItems(
       roomName: syncRow.roomName,
       name: syncRow.itemName,
       brand: syncRow.brand,
+      model: syncRow.model,
       categoryName: syncRow.categoryName,
       purchasePriceUsd: syncRow.purchasePriceUsd,
-      purchaseYear: syncRow.purchaseYear,
+      purchaseDate: syncRow.purchaseDate,
       description: syncRow.description,
-      imageBase64,
+      imageBase64: primaryImage?.imageBase64 ?? null,
       imageMimeType: 'image/jpeg',
+      images,
       updatedAt: syncRow.updatedAt,
     });
   }

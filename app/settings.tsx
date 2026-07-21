@@ -10,7 +10,11 @@ import KeyboardAwareFormScroll, {
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 import { screenStyles } from '@/constants/screenStyles';
-import { getAppSettings, updateAppSettings } from '@/db/settings';
+import {
+  getAppSettings,
+  updateAppSettings,
+  updateDefaultImageSource,
+} from '@/db/settings';
 import { getEnvGasDefaults, pingGas } from '@/lib/gasClient';
 import type { DefaultImageSource } from '@/types/inventory';
 
@@ -36,6 +40,8 @@ export default function SettingsScreen() {
   const [defaultImageSource, setDefaultImageSource] =
     useState<DefaultImageSource>('camera');
   const [isLoading, setIsLoading] = useState(true);
+  const [isSavingDefaultImageSource, setIsSavingDefaultImageSource] =
+    useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -65,6 +71,30 @@ export default function SettingsScreen() {
 
     void loadSettings();
   }, [database]);
+
+  /**
+   * Immediately saves this two-option preference without saving edited cloud fields.
+   */
+  async function handleDefaultImageSourceChange(nextSource: DefaultImageSource) {
+    if (nextSource === defaultImageSource) {
+      return;
+    }
+
+    setIsSavingDefaultImageSource(true);
+    setErrorMessage(null);
+    setStatusMessage(null);
+
+    try {
+      await updateDefaultImageSource(database, nextSource);
+      setDefaultImageSource(nextSource);
+      setStatusMessage('Default photo source saved.');
+    } catch (error) {
+      console.log('SettingsScreen photo source save error:', error);
+      setErrorMessage('Could not save the default photo source.');
+    } finally {
+      setIsSavingDefaultImageSource(false);
+    }
+  }
 
   /**
    * Persists cloud URL, folder id, and photo preference into app_settings.
@@ -153,8 +183,10 @@ export default function SettingsScreen() {
                 : 'transparent',
           },
         ]}
-        disabled={isSaving || isTesting}
-        onPress={() => setDefaultImageSource('camera')}>
+        disabled={isSavingDefaultImageSource || isSaving || isTesting}
+        onPress={() => {
+          void handleDefaultImageSourceChange('camera');
+        }}>
         <Text style={[screenStyles.rowButtonText, { color: colors.text }]}>
           {defaultImageSource === 'camera' ? '✓ Camera' : 'Camera'}
         </Text>
@@ -171,8 +203,10 @@ export default function SettingsScreen() {
                 : 'transparent',
           },
         ]}
-        disabled={isSaving || isTesting}
-        onPress={() => setDefaultImageSource('gallery')}>
+        disabled={isSavingDefaultImageSource || isSaving || isTesting}
+        onPress={() => {
+          void handleDefaultImageSourceChange('gallery');
+        }}>
         <Text style={[screenStyles.rowButtonText, { color: colors.text }]}>
           {defaultImageSource === 'gallery' ? '✓ Gallery' : 'Gallery'}
         </Text>
@@ -244,7 +278,7 @@ export default function SettingsScreen() {
           screenStyles.primaryButton,
           { backgroundColor: colors.tint, opacity: isSaving ? 0.7 : 1 },
         ]}
-        disabled={isSaving || isTesting}
+        disabled={isSavingDefaultImageSource || isSaving || isTesting}
         onPress={() => {
           void handleSaveSettings();
         }}>
@@ -260,7 +294,7 @@ export default function SettingsScreen() {
           screenStyles.secondaryButton,
           { borderColor: colors.border, opacity: isTesting ? 0.7 : 1 },
         ]}
-        disabled={isSaving || isTesting}
+        disabled={isSavingDefaultImageSource || isSaving || isTesting}
         onPress={() => {
           void handleTestConnection();
         }}>
@@ -275,7 +309,7 @@ export default function SettingsScreen() {
 
       <Pressable
         style={[screenStyles.secondaryButton, { borderColor: colors.border }]}
-        disabled={isSaving || isTesting}
+        disabled={isSavingDefaultImageSource || isSaving || isTesting}
         onPress={() => router.back()}>
         <Text style={[screenStyles.secondaryButtonText, { color: colors.text }]}>
           Back

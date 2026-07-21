@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -8,6 +8,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 
 import { useColorScheme } from '@/components/useColorScheme';
@@ -47,25 +48,47 @@ export default function ImagePickerField({
   const database = useSQLiteContext();
 
   const [isProcessingPhoto, setIsProcessingPhoto] = useState(false);
+  const [isDefaultImageSourceLoading, setIsDefaultImageSourceLoading] =
+    useState(true);
   const [defaultImageSource, setDefaultImageSource] =
     useState<DefaultImageSource>('camera');
 
-  useEffect(() => {
-    /**
-     * Loads the preferred empty-tap photo source from Settings.
-     */
-    async function loadDefaultImageSource() {
-      try {
-        const appSettings = await getAppSettings(database);
-        setDefaultImageSource(appSettings.defaultImageSource);
-      } catch (error) {
-        console.log('ImagePickerField settings load error:', error);
-        setDefaultImageSource('camera');
-      }
-    }
+  useFocusEffect(
+    useCallback(() => {
+      let isActive = true;
 
-    void loadDefaultImageSource();
-  }, [database]);
+      /**
+       * Reloads the preference whenever this screen regains focus after Settings.
+       */
+      async function loadDefaultImageSource() {
+        setIsDefaultImageSourceLoading(true);
+
+        try {
+          const appSettings = await getAppSettings(database);
+
+          if (isActive) {
+            setDefaultImageSource(appSettings.defaultImageSource);
+          }
+        } catch (error) {
+          console.log('ImagePickerField settings load error:', error);
+
+          if (isActive) {
+            setDefaultImageSource('camera');
+          }
+        } finally {
+          if (isActive) {
+            setIsDefaultImageSourceLoading(false);
+          }
+        }
+      }
+
+      void loadDefaultImageSource();
+
+      return () => {
+        isActive = false;
+      };
+    }, [database]),
+  );
 
   /**
    * Runs the pick → downscale → save pipeline for camera or gallery.
@@ -127,7 +150,10 @@ export default function ImagePickerField({
    * Empty area: open preferred source. Existing photo: full ActionSheet.
    */
   function handlePhotoAreaPress() {
-    if (isProcessingPhoto) {
+    if (
+      isProcessingPhoto ||
+      (imageUri === null && isDefaultImageSourceLoading)
+    ) {
       return;
     }
 
@@ -173,7 +199,10 @@ export default function ImagePickerField({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel="Add or change item photo"
-      disabled={isProcessingPhoto}
+      disabled={
+        isProcessingPhoto ||
+        (imageUri === null && isDefaultImageSourceLoading)
+      }
       onPress={handlePhotoAreaPress}
       style={[
         styles.frame,
@@ -183,7 +212,8 @@ export default function ImagePickerField({
           opacity: isProcessingPhoto ? 0.7 : 1,
         },
       ]}>
-      {isProcessingPhoto ? (
+      {isProcessingPhoto ||
+      (imageUri === null && isDefaultImageSourceLoading) ? (
         <ActivityIndicator />
       ) : imageUri !== null ? (
         <Image source={{ uri: imageUri }} style={styles.previewImage} resizeMode="cover" />

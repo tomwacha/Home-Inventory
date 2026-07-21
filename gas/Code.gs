@@ -15,11 +15,17 @@ var HEADER_ROW = [
   'room_name',
   'item_name',
   'brand',
+  'model',
   'category',
   'purchase_price_usd',
-  'purchase_year',
+  'purchase_date',
   'description',
-  'drive_image_url',
+  'Primary Photo',
+  'Additional Photo 1',
+  'Additional Photo 2',
+  'Additional Photo 3',
+  'Additional Photo 4',
+  'item_images_json',
   'updated_at',
   'client_item_id',
 ];
@@ -30,13 +36,19 @@ var COL = {
   roomName: 3,
   itemName: 4,
   brand: 5,
-  category: 6,
-  purchasePriceUsd: 7,
-  purchaseYear: 8,
-  description: 9,
-  driveImageUrl: 10,
-  updatedAt: 11,
-  clientItemId: 12,
+  model: 6,
+  category: 7,
+  purchasePriceUsd: 8,
+  purchaseDate: 9,
+  description: 10,
+  driveImageUrl: 11,
+  additionalPhoto1: 12,
+  additionalPhoto2: 13,
+  additionalPhoto3: 14,
+  additionalPhoto4: 15,
+  itemImagesJson: 16,
+  updatedAt: 17,
+  clientItemId: 18,
 };
 
 /**
@@ -173,13 +185,21 @@ function readAllSheetRows(sheet) {
       roomName: String(valueRow[COL.roomName - 1] || ''),
       name: String(valueRow[COL.itemName - 1] || ''),
       brand: String(valueRow[COL.brand - 1] || ''),
+      model: String(valueRow[COL.model - 1] || ''),
       categoryName: String(valueRow[COL.category - 1] || ''),
       purchasePriceUsd: Number(valueRow[COL.purchasePriceUsd - 1] || 0),
-      purchaseYear: valueRow[COL.purchaseYear - 1] === '' || valueRow[COL.purchaseYear - 1] === null
+      purchaseDate: valueRow[COL.purchaseDate - 1] === '' || valueRow[COL.purchaseDate - 1] === null
         ? null
-        : Number(valueRow[COL.purchaseYear - 1]),
+        : String(valueRow[COL.purchaseDate - 1]),
       description: String(valueRow[COL.description - 1] || ''),
       driveImageUrl: String(valueRow[COL.driveImageUrl - 1] || '') || null,
+      additionalPhotoUrls: [
+        String(valueRow[COL.additionalPhoto1 - 1] || ''),
+        String(valueRow[COL.additionalPhoto2 - 1] || ''),
+        String(valueRow[COL.additionalPhoto3 - 1] || ''),
+        String(valueRow[COL.additionalPhoto4 - 1] || ''),
+      ],
+      itemImagesJson: String(valueRow[COL.itemImagesJson - 1] || ''),
       updatedAt: String(valueRow[COL.updatedAt - 1] || ''),
       clientItemId: valueRow[COL.clientItemId - 1] === '' || valueRow[COL.clientItemId - 1] === null
         ? null
@@ -188,6 +208,25 @@ function readAllSheetRows(sheet) {
   }
 
   return rows;
+}
+
+/**
+ * Parses the Sheet JSON cell into an ordered images metadata array.
+ */
+function parseItemImagesJson(rawJsonText) {
+  if (!rawJsonText || String(rawJsonText).trim().length === 0) {
+    return [];
+  }
+
+  try {
+    var parsed = JSON.parse(String(rawJsonText));
+    if (!parsed || !parsed.length) {
+      return [];
+    }
+    return parsed;
+  } catch (error) {
+    return [];
+  }
 }
 
 /**
@@ -273,13 +312,13 @@ function resolveDriveFolderId(requestFolderId) {
 /**
  * Uploads a Base64 image into Drive and returns a viewable URL.
  */
-function uploadImageToDrive(folderId, itemName, imageBase64, imageMimeType) {
+function uploadImageToDrive(folderId, itemName, imageBase64, imageMimeType, fileLabel) {
   if (!imageBase64) {
     return null;
   }
 
   var folder = DriveApp.getFolderById(folderId);
-  var safeName = String(itemName || 'item').replace(/[\\/:*?"<>|]/g, '-');
+  var safeName = String(fileLabel || itemName || 'item').replace(/[\\/:*?"<>|]/g, '-');
   var fileName = safeName + '-' + new Date().getTime() + '.jpg';
   var blob = Utilities.newBlob(
     Utilities.base64Decode(imageBase64),
@@ -302,6 +341,135 @@ function createSheetRowId() {
 }
 
 /**
+ * Uploads every photo on an item; keeps primary URL for the classic column.
+ */
+function uploadItemImages(item, folderId, matchedImagesJson) {
+  var existingMetadata = parseItemImagesJson(matchedImagesJson);
+  var existingByImageId = {};
+  var existingIndex;
+  var imageIndex;
+  var uploadedImages = [];
+  var primaryDriveUrl = null;
+  var incomingImages = item.images && item.images.length ? item.images : null;
+
+  for (existingIndex = 0; existingIndex < existingMetadata.length; existingIndex++) {
+    var existingMeta = existingMetadata[existingIndex];
+    if (existingMeta && existingMeta.imageId != null) {
+      existingByImageId[String(existingMeta.imageId)] = existingMeta;
+    }
+  }
+
+  // Older clients only send singular imageBase64 — wrap as one primary photo.
+  if (!incomingImages) {
+    incomingImages = [];
+    if (item.imageBase64) {
+      incomingImages.push({
+        imageId: null,
+        imageNumber: 1,
+        sortOrder: 0,
+        isPrimary: true,
+        imageBase64: item.imageBase64,
+        imageMimeType: item.imageMimeType || 'image/jpeg',
+        driveImageUrl: null,
+      });
+    } else if (existingMetadata.length > 0) {
+      return {
+        driveImageUrl: existingMetadata[0].driveImageUrl || null,
+        images: existingMetadata,
+        imagesJson: JSON.stringify(existingMetadata),
+      };
+    }
+  }
+
+  for (imageIndex = 0; imageIndex < incomingImages.length; imageIndex++) {
+    var imagePayload = incomingImages[imageIndex];
+    var driveImageUrl = imagePayload.driveImageUrl || null;
+    var prior =
+      imagePayload.imageId != null
+        ? existingByImageId[String(imagePayload.imageId)]
+        : null;
+
+    if (!driveImageUrl && prior && prior.driveImageUrl) {
+      driveImageUrl = prior.driveImageUrl;
+    }
+
+    if (imagePayload.imageBase64) {
+      if (!folderId) {
+        throw new Error(
+          'No Drive folder id. Pass driveFolderId in the request or set Script Property DRIVE_FOLDER_ID.'
+        );
+      }
+
+      driveImageUrl = uploadImageToDrive(
+        folderId,
+        item.name,
+        imagePayload.imageBase64,
+        imagePayload.imageMimeType || 'image/jpeg',
+        item.name + '-' + (imagePayload.imageNumber || imageIndex + 1)
+      );
+    }
+
+    var metadata = {
+      imageId: imagePayload.imageId != null ? imagePayload.imageId : null,
+      imageNumber: imagePayload.imageNumber != null ? imagePayload.imageNumber : imageIndex + 1,
+      sortOrder: imagePayload.sortOrder != null ? imagePayload.sortOrder : imageIndex,
+      isPrimary: !!imagePayload.isPrimary,
+      driveImageUrl: driveImageUrl,
+    };
+
+    uploadedImages.push(metadata);
+
+    if (metadata.isPrimary) {
+      primaryDriveUrl = driveImageUrl;
+    }
+  }
+
+  if (primaryDriveUrl === null && uploadedImages.length > 0) {
+    primaryDriveUrl = uploadedImages[0].driveImageUrl || null;
+    uploadedImages[0].isPrimary = true;
+  }
+
+  return {
+    driveImageUrl: primaryDriveUrl,
+    images: uploadedImages,
+    imagesJson: JSON.stringify(uploadedImages),
+  };
+}
+
+/**
+ * Builds the five human-readable Sheet photo columns (primary + four additional).
+ * Complete metadata still remains in item_images_json for photos beyond five.
+ */
+function buildSheetPhotoColumns(uploadImageResult) {
+  var photoColumns = [
+    uploadImageResult.driveImageUrl || '',
+    '',
+    '',
+    '',
+    '',
+  ];
+  var additionalColumnIndex = 1;
+  var imageIndex;
+
+  for (imageIndex = 0; imageIndex < uploadImageResult.images.length; imageIndex++) {
+    var image = uploadImageResult.images[imageIndex];
+
+    if (image.isPrimary) {
+      continue;
+    }
+
+    if (additionalColumnIndex >= photoColumns.length) {
+      break;
+    }
+
+    photoColumns[additionalColumnIndex] = image.driveImageUrl || '';
+    additionalColumnIndex += 1;
+  }
+
+  return photoColumns;
+}
+
+/**
  * Writes or updates Sheet rows for each item.
  * duplicateMode:
  *   - skip: leave existing matches unchanged
@@ -316,12 +484,25 @@ function uploadItems(items, duplicateMode, driveFolderId) {
   var results = [];
   var folderId = null;
 
-  // Only resolve Drive folder if at least one item has an image.
+  // Resolve Drive folder if any item has Base64 (singular or images[]).
   var needsDrive = false;
   for (index = 0; index < items.length; index++) {
-    if (items[index].imageBase64) {
+    var candidate = items[index];
+    if (candidate.imageBase64) {
       needsDrive = true;
       break;
+    }
+    if (candidate.images && candidate.images.length) {
+      var imageCheckIndex;
+      for (imageCheckIndex = 0; imageCheckIndex < candidate.images.length; imageCheckIndex++) {
+        if (candidate.images[imageCheckIndex].imageBase64) {
+          needsDrive = true;
+          break;
+        }
+      }
+      if (needsDrive) {
+        break;
+      }
     }
   }
 
@@ -354,6 +535,7 @@ function uploadItems(items, duplicateMode, driveFolderId) {
         clientItemId: item.clientItemId,
         sheetRowId: matched.sheetRowId,
         driveImageUrl: matched.driveImageUrl,
+        images: parseItemImagesJson(matched.itemImagesJson),
         status: 'skipped',
       });
       continue;
@@ -363,16 +545,12 @@ function uploadItems(items, duplicateMode, driveFolderId) {
       ? matched.sheetRowId
       : item.sheetRowId || createSheetRowId();
 
-    var driveImageUrl = matched ? matched.driveImageUrl : null;
-
-    if (item.imageBase64) {
-      driveImageUrl = uploadImageToDrive(
-        folderId,
-        item.name,
-        item.imageBase64,
-        item.imageMimeType || 'image/jpeg'
-      );
-    }
+    var uploadImageResult = uploadItemImages(
+      item,
+      folderId,
+      matched ? matched.itemImagesJson : ''
+    );
+    var sheetPhotoColumns = buildSheetPhotoColumns(uploadImageResult);
 
     var rowValues = [
       sheetRowId,
@@ -380,11 +558,17 @@ function uploadItems(items, duplicateMode, driveFolderId) {
       item.roomName || '',
       item.name || '',
       item.brand || '',
+      item.model || '',
       item.categoryName || '',
       item.purchasePriceUsd != null ? item.purchasePriceUsd : 0,
-      item.purchaseYear != null ? item.purchaseYear : '',
+      item.purchaseDate != null ? item.purchaseDate : '',
       item.description || '',
-      driveImageUrl || '',
+      sheetPhotoColumns[0],
+      sheetPhotoColumns[1],
+      sheetPhotoColumns[2],
+      sheetPhotoColumns[3],
+      sheetPhotoColumns[4],
+      uploadImageResult.imagesJson || '[]',
       item.updatedAt || new Date().toISOString(),
       item.clientItemId != null ? item.clientItemId : '',
     ];
@@ -394,7 +578,8 @@ function uploadItems(items, duplicateMode, driveFolderId) {
       results.push({
         clientItemId: item.clientItemId,
         sheetRowId: sheetRowId,
-        driveImageUrl: driveImageUrl,
+        driveImageUrl: uploadImageResult.driveImageUrl,
+        images: uploadImageResult.images,
         status: 'updated',
       });
     } else {
@@ -402,7 +587,8 @@ function uploadItems(items, duplicateMode, driveFolderId) {
       results.push({
         clientItemId: item.clientItemId,
         sheetRowId: sheetRowId,
-        driveImageUrl: driveImageUrl,
+        driveImageUrl: uploadImageResult.driveImageUrl,
+        images: uploadImageResult.images,
         status: 'created',
       });
     }
@@ -432,17 +618,52 @@ function downloadItems(houseNameFilter) {
       continue;
     }
 
+    var images = parseItemImagesJson(row.itemImagesJson);
+
+    // Rebuild metadata from the five visible photo columns when JSON is absent.
+    if (images.length === 0) {
+      var visiblePhotoUrls = [row.driveImageUrl];
+      var additionalPhotoIndex;
+
+      for (
+        additionalPhotoIndex = 0;
+        additionalPhotoIndex < row.additionalPhotoUrls.length;
+        additionalPhotoIndex++
+      ) {
+        visiblePhotoUrls.push(row.additionalPhotoUrls[additionalPhotoIndex]);
+      }
+
+      var visiblePhotoIndex;
+      for (visiblePhotoIndex = 0; visiblePhotoIndex < visiblePhotoUrls.length; visiblePhotoIndex++) {
+        var visiblePhotoUrl = visiblePhotoUrls[visiblePhotoIndex];
+
+        if (!visiblePhotoUrl) {
+          continue;
+        }
+
+        images.push({
+          imageId: null,
+          imageNumber: images.length + 1,
+          sortOrder: images.length,
+          isPrimary: images.length === 0,
+          driveImageUrl: visiblePhotoUrl,
+        });
+      }
+    }
+
     items.push({
       sheetRowId: row.sheetRowId,
       houseName: row.houseName,
       roomName: row.roomName,
       name: row.name,
       brand: row.brand,
+      model: row.model,
       categoryName: row.categoryName,
       purchasePriceUsd: row.purchasePriceUsd,
-      purchaseYear: row.purchaseYear,
+      purchaseDate: row.purchaseDate,
       description: row.description,
       driveImageUrl: row.driveImageUrl,
+      images: images,
       updatedAt: row.updatedAt,
     });
   }

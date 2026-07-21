@@ -43,15 +43,38 @@ export type Item = {
   roomId: number;
   name: string;
   brand: string | null;
+  /** Product model name/number (optional). */
+  model: string | null;
   categoryId: number | null;
   purchasePriceUsd: number;
-  purchaseYear: number | null;
+  /** Purchase date as YYYY-MM-DD, or null when unknown. */
+  purchaseDate: string | null;
   description: string | null;
+  /** Denormalized primary photo path (kept in sync with item_images). */
   localImagePath: string | null;
+  /** Denormalized primary Drive URL (kept in sync with item_images). */
   driveImageUrl: string | null;
   sheetRowId: string | null;
   updatedAt: string;
   syncStatus: SyncStatus;
+};
+
+/** One photo belonging to an item (ordered; one may be primary). */
+export type ItemImage = {
+  id: number;
+  itemId: number;
+  localPath: string | null;
+  sortOrder: number;
+  isPrimary: boolean;
+  driveImageUrl: string | null;
+};
+
+export type NewItemImageInput = {
+  itemId: number;
+  localPath: string | null;
+  sortOrder: number;
+  isPrimary: boolean;
+  driveImageUrl?: string | null;
 };
 
 /** Preferred source when tapping an empty photo area (Add Item). */
@@ -93,9 +116,10 @@ export type NewItemInput = {
   roomId: number;
   name: string;
   brand?: string | null;
+  model?: string | null;
   categoryId?: number | null;
   purchasePriceUsd?: number;
-  purchaseYear?: number | null;
+  purchaseDate?: string | null;
   description?: string | null;
   localImagePath?: string | null;
 };
@@ -113,11 +137,18 @@ export type ExportInventoryRow = {
   roomName: string;
   itemName: string;
   brand: string;
+  model: string;
   categoryName: string;
   purchasePriceUsd: number;
-  purchaseYear: string;
+  purchaseDate: string;
   description: string;
+  /** Denormalized primary local path (compat / Has Local Photo). */
   localImagePath: string | null;
+  /** All local photo paths in display order (primary first). */
+  localImagePaths: string[];
+  photoCount: number;
+  /** Ordered Drive URL cells (primary first; blanks preserve photo positions). */
+  driveImageUrls: string[];
 };
 
 /**
@@ -129,10 +160,14 @@ export type SyncInventoryRow = {
   roomName: string;
   itemName: string;
   brand: string;
+  model: string;
   categoryName: string;
   purchasePriceUsd: number;
-  purchaseYear: number | null;
+  purchaseDate: string | null;
   description: string;
+  /** Denormalized primary local path (compat / CSV Has Local Photo). */
   localImagePath: string | null;
+  /** All photos for this item, ordered by sort_order. */
+  images: ItemImage[];
   updatedAt: string;
 };

@@ -17,11 +17,30 @@ const sampleSyncRow: SyncInventoryRow = {
   roomName: 'Kitchen',
   itemName: 'Blender',
   brand: 'Acme',
+  model: 'X100',
   categoryName: 'Appliances',
   purchasePriceUsd: 49.5,
-  purchaseYear: 2020,
+  purchaseDate: '2020-01-01',
   description: 'Red',
   localImagePath: 'file:///photo.jpg',
+  images: [
+    {
+      id: 11,
+      itemId: 7,
+      localPath: 'file:///photo.jpg',
+      sortOrder: 0,
+      isPrimary: true,
+      driveImageUrl: null,
+    },
+    {
+      id: 12,
+      itemId: 7,
+      localPath: 'file:///photo-2.jpg',
+      sortOrder: 1,
+      isPrimary: false,
+      driveImageUrl: null,
+    },
+  ],
   updatedAt: '2026-01-01T00:00:00.000Z',
 };
 
@@ -48,8 +67,18 @@ describe('buildGasUploadItems', () => {
       houseName: 'Beach House',
       roomName: 'Kitchen',
       name: 'Blender',
+      brand: 'Acme',
+      model: 'X100',
+      purchaseDate: '2020-01-01',
       imageBase64: 'YmFzZTY0ZGF0YQ==',
       imageMimeType: 'image/jpeg',
+    });
+    expect(uploadItems[0].images).toHaveLength(2);
+    expect(uploadItems[0].images[0]).toMatchObject({
+      imageId: 11,
+      imageNumber: 1,
+      isPrimary: true,
+      imageBase64: 'YmFzZTY0ZGF0YQ==',
     });
   });
 
@@ -57,11 +86,13 @@ describe('buildGasUploadItems', () => {
     const rowWithoutPhoto: SyncInventoryRow = {
       ...sampleSyncRow,
       localImagePath: null,
+      images: [],
     };
 
     const uploadItems = await buildGasUploadItems('Beach House', [rowWithoutPhoto]);
 
     expect(uploadItems[0].imageBase64).toBeNull();
+    expect(uploadItems[0].images).toEqual([]);
     expect(FileSystem.getInfoAsync).not.toHaveBeenCalled();
   });
 
@@ -75,6 +106,7 @@ describe('buildGasUploadItems', () => {
     const uploadItems = await buildGasUploadItems('Beach House', [sampleSyncRow]);
 
     expect(uploadItems[0].imageBase64).toBeNull();
+    expect(uploadItems[0].images[0].imageBase64).toBeNull();
     expect(FileSystem.readAsStringAsync).not.toHaveBeenCalled();
   });
 });

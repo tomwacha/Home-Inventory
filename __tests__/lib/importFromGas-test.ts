@@ -5,6 +5,7 @@ import type { House } from '@/types/inventory';
 jest.mock('expo-file-system/legacy', () => ({
   makeDirectoryAsync: jest.fn(async () => undefined),
   downloadAsync: jest.fn(),
+  moveAsync: jest.fn(async () => undefined),
 }));
 
 jest.mock('@/db/rooms', () => ({
@@ -22,11 +23,31 @@ jest.mock('@/db/items', () => ({
   createItemFromImport: jest.fn(),
 }));
 
+jest.mock('@/db/itemImages', () => ({
+  createItemImage: jest.fn(),
+  deleteAllImagesForItem: jest.fn(),
+  getImagesByItemId: jest.fn(),
+  syncItemPrimaryImageColumns: jest.fn(),
+  updateItemImagePaths: jest.fn(),
+}));
+
 jest.mock('@/lib/images', () => ({
-  buildItemImageFileName: jest.fn(() => 'item-123.jpg'),
+  deleteLocalImageIfExists: jest.fn(),
+}));
+
+jest.mock('@/lib/itemImageFiles', () => ({
+  buildStagedItemImageFileName: jest.fn(() => 'staged-1.jpg'),
+  buildFinalItemImageFileName: jest.fn(() => 'Beach House - Blender - 01 - 50.jpg'),
+  renameLocalItemImageFile: jest.fn(async ({ currentLocalPath }) => currentLocalPath),
 }));
 
 import { getOrCreateCategoryByName } from '@/db/categories';
+import {
+  createItemImage,
+  deleteAllImagesForItem,
+  getImagesByItemId,
+  syncItemPrimaryImageColumns,
+} from '@/db/itemImages';
 import {
   applyImportedItemFields,
   createItemFromImport,
@@ -54,11 +75,13 @@ function buildDownloadItem(
     roomName: 'Kitchen',
     name: 'Blender',
     brand: 'Acme',
+    model: 'X100',
     categoryName: 'Appliances',
     purchasePriceUsd: 49.5,
-    purchaseYear: 2020,
+    purchaseDate: '2020-01-01',
     description: 'Red',
     driveImageUrl: null,
+    images: [],
     updatedAt: '2026-01-02T00:00:00.000Z',
     ...overrides,
   };
@@ -78,6 +101,15 @@ describe('importDownloadItemsForHouse', () => {
     });
     jest.mocked(getItemBySheetRowIdInHouse).mockResolvedValue(null);
     jest.mocked(getItemByRoomIdAndName).mockResolvedValue(null);
+    jest.mocked(getImagesByItemId).mockResolvedValue([]);
+    jest.mocked(createItemImage).mockResolvedValue({
+      id: 50,
+      itemId: 99,
+      localPath: 'file:///houses/Beach/staged-1.jpg',
+      sortOrder: 0,
+      isPrimary: true,
+      driveImageUrl: 'https://drive.example/file',
+    });
   });
 
   test('skips rows missing room or item name', async () => {
@@ -100,9 +132,10 @@ describe('importDownloadItemsForHouse', () => {
       roomId: 10,
       name: 'Blender',
       brand: 'Acme',
+      model: 'X100',
       categoryId: 20,
       purchasePriceUsd: 49.5,
-      purchaseYear: 2020,
+      purchaseDate: '2020-01-01',
       description: 'Red',
       localImagePath: null,
       driveImageUrl: null,
@@ -118,6 +151,13 @@ describe('importDownloadItemsForHouse', () => {
     expect(summary.createdCount).toBe(1);
     expect(summary.updatedCount).toBe(0);
     expect(createItemFromImport).toHaveBeenCalledTimes(1);
+    expect(createItemFromImport).toHaveBeenCalledWith(
+      fakeDatabase,
+      expect.objectContaining({
+        model: 'X100',
+        purchaseDate: '2020-01-01',
+      }),
+    );
     expect(applyImportedItemFields).not.toHaveBeenCalled();
   });
 
@@ -127,9 +167,10 @@ describe('importDownloadItemsForHouse', () => {
       roomId: 10,
       name: 'Old Blender',
       brand: null,
+      model: null,
       categoryId: null,
       purchasePriceUsd: 10,
-      purchaseYear: null,
+      purchaseDate: null,
       description: null,
       localImagePath: 'file:///old.jpg',
       driveImageUrl: null,
@@ -156,9 +197,9 @@ describe('importDownloadItemsForHouse', () => {
     expect(createItemFromImport).not.toHaveBeenCalled();
   });
 
-  test('downloads a Drive image when a URL is present', async () => {
+  test('downloads every Drive image when images metadata is present', async () => {
     jest.mocked(FileSystem.downloadAsync).mockResolvedValue({
-      uri: 'file:///houses/Beach/item-123.jpg',
+      uri: 'file:///houses/Beach/staged-1.jpg',
       status: 200,
       headers: {},
       mimeType: 'image/jpeg',
@@ -168,11 +209,12 @@ describe('importDownloadItemsForHouse', () => {
       roomId: 10,
       name: 'Blender',
       brand: 'Acme',
+      model: 'X100',
       categoryId: 20,
       purchasePriceUsd: 49.5,
-      purchaseYear: 2020,
+      purchaseDate: '2020-01-01',
       description: 'Red',
-      localImagePath: 'file:///houses/Beach/item-123.jpg',
+      localImagePath: null,
       driveImageUrl: 'https://drive.example/file',
       sheetRowId: 'sheet-1',
       updatedAt: '2026-01-02T00:00:00.000Z',
@@ -180,16 +222,30 @@ describe('importDownloadItemsForHouse', () => {
     });
 
     await importDownloadItemsForHouse(fakeDatabase, sampleHouse, [
-      buildDownloadItem({ driveImageUrl: 'https://drive.example/file' }),
+      buildDownloadItem({
+        driveImageUrl: 'https://drive.example/file',
+        images: [
+          {
+            imageId: 11,
+            imageNumber: 1,
+            sortOrder: 0,
+            isPrimary: true,
+            driveImageUrl: 'https://drive.example/file',
+          },
+          {
+            imageId: 12,
+            imageNumber: 2,
+            sortOrder: 1,
+            isPrimary: false,
+            driveImageUrl: 'https://drive.example/file-2',
+          },
+        ],
+      }),
     ]);
 
-    expect(FileSystem.downloadAsync).toHaveBeenCalled();
-    expect(createItemFromImport).toHaveBeenCalledWith(
-      fakeDatabase,
-      expect.objectContaining({
-        localImagePath: 'file:///houses/Beach/item-123.jpg',
-        driveImageUrl: 'https://drive.example/file',
-      }),
-    );
+    expect(FileSystem.downloadAsync).toHaveBeenCalledTimes(2);
+    expect(deleteAllImagesForItem).toHaveBeenCalledWith(fakeDatabase, 99);
+    expect(createItemImage).toHaveBeenCalledTimes(2);
+    expect(syncItemPrimaryImageColumns).toHaveBeenCalledWith(fakeDatabase, 99);
   });
 });

@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import HouseMainScreen from '@/app/house/[houseId]/index';
 
+const mockPush = jest.fn();
 const mockReplace = jest.fn();
 
 jest.mock('@/components/useColorScheme', () => ({
@@ -18,7 +19,7 @@ jest.mock('expo-router', () => {
 
   return {
     useRouter: () => ({
-      push: jest.fn(),
+      push: mockPush,
       replace: mockReplace,
       back: jest.fn(),
     }),
@@ -71,15 +72,34 @@ jest.mock('@/db/items', () => ({
  */
 describe('<HouseMainScreen />', () => {
   beforeEach(() => {
+    mockPush.mockClear();
     mockReplace.mockClear();
+  });
+
+  test('shows compact house actions and navigates to each target', async () => {
+    await render(<HouseMainScreen />);
+
+    expect(await screen.findByText('Beach House')).toBeTruthy();
+    expect(await screen.findByText('Add Room')).toBeTruthy();
+    expect(await screen.findByText('Edit House')).toBeTruthy();
+    expect(await screen.findByText('View Policies')).toBeTruthy();
+    expect(await screen.findByText('Manage Categories')).toBeTruthy();
+
+    fireEvent.press(await screen.findByText('Add Room'));
+    expect(mockPush).toHaveBeenCalledWith('/house/1/add-room');
+
+    fireEvent.press(await screen.findByText('Edit House'));
+    expect(mockPush).toHaveBeenCalledWith('/house/1/edit');
+
+    fireEvent.press(await screen.findByText('View Policies'));
+    expect(mockPush).toHaveBeenCalledWith('/house/1/policies');
+
+    fireEvent.press(await screen.findByText('Manage Categories'));
+    expect(mockPush).toHaveBeenCalledWith('/categories');
   });
 
   test('shows Back to Welcome and navigates home when pressed', async () => {
     await render(<HouseMainScreen />);
-
-    expect(await screen.findByText('Beach House')).toBeTruthy();
-    expect(await screen.findByText('Edit House')).toBeTruthy();
-    expect(await screen.findByText('View Policies')).toBeTruthy();
 
     const backButton = await screen.findByText('Back to Welcome');
     fireEvent.press(backButton);

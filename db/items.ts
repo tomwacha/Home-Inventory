@@ -9,15 +9,20 @@ import type {
   SyncInventoryRow,
   SyncStatus,
 } from '@/types/inventory';
+import {
+  syncItemPrimaryImageColumns,
+  updateItemImagePaths,
+} from '@/db/itemImages';
 
 type ItemRow = {
   id: number;
   room_id: number;
   name: string;
   brand: string | null;
+  model: string | null;
   category_id: number | null;
   purchase_price_usd: number;
-  purchase_year: number | null;
+  purchase_date: string | null;
   description: string | null;
   local_image_path: string | null;
   drive_image_url: string | null;
@@ -25,6 +30,13 @@ type ItemRow = {
   updated_at: string;
   sync_status: string;
 };
+
+const ITEM_SELECT_COLUMNS = `
+  id, room_id, name, brand, model, category_id,
+  purchase_price_usd, purchase_date, description,
+  local_image_path, drive_image_url, sheet_row_id,
+  updated_at, sync_status
+`;
 
 /**
  * Narrows a stored string to our SyncStatus union, with a safe fallback.
@@ -46,9 +58,10 @@ function mapItemRowToItem(row: ItemRow): Item {
     roomId: row.room_id,
     name: row.name,
     brand: row.brand,
+    model: row.model,
     categoryId: row.category_id,
     purchasePriceUsd: row.purchase_price_usd,
-    purchaseYear: row.purchase_year,
+    purchaseDate: row.purchase_date,
     description: row.description,
     localImagePath: row.local_image_path,
     driveImageUrl: row.drive_image_url,
@@ -72,22 +85,24 @@ export async function createItem(
       room_id,
       name,
       brand,
+      model,
       category_id,
       purchase_price_usd,
-      purchase_year,
+      purchase_date,
       description,
       local_image_path,
       drive_image_url,
       sheet_row_id,
       updated_at,
       sync_status
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, 'local')`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, 'local')`,
     input.roomId,
     input.name.trim(),
     input.brand ?? null,
+    input.model ?? null,
     input.categoryId ?? null,
     input.purchasePriceUsd ?? 0,
-    input.purchaseYear ?? null,
+    input.purchaseDate ?? null,
     input.description ?? null,
     input.localImagePath ?? null,
     updatedAt,
@@ -110,11 +125,7 @@ export async function getItemsByRoomId(
   roomId: number,
 ): Promise<Item[]> {
   const rows = await database.getAllAsync<ItemRow>(
-    `SELECT
-      id, room_id, name, brand, category_id,
-      purchase_price_usd, purchase_year, description,
-      local_image_path, drive_image_url, sheet_row_id,
-      updated_at, sync_status
+    `SELECT ${ITEM_SELECT_COLUMNS}
      FROM items
      WHERE room_id = ?
      ORDER BY name COLLATE NOCASE ASC`,
@@ -132,11 +143,7 @@ export async function getItemById(
   itemId: number,
 ): Promise<Item | null> {
   const row = await database.getFirstAsync<ItemRow>(
-    `SELECT
-      id, room_id, name, brand, category_id,
-      purchase_price_usd, purchase_year, description,
-      local_image_path, drive_image_url, sheet_row_id,
-      updated_at, sync_status
+    `SELECT ${ITEM_SELECT_COLUMNS}
      FROM items
      WHERE id = ?`,
     itemId,
@@ -158,9 +165,10 @@ export async function updateItem(
   updates: {
     name: string;
     brand: string | null;
+    model: string | null;
     categoryId: number | null;
     purchasePriceUsd: number;
-    purchaseYear: number | null;
+    purchaseDate: string | null;
     description: string | null;
     localImagePath: string | null;
   },
@@ -171,9 +179,10 @@ export async function updateItem(
     `UPDATE items SET
       name = ?,
       brand = ?,
+      model = ?,
       category_id = ?,
       purchase_price_usd = ?,
-      purchase_year = ?,
+      purchase_date = ?,
       description = ?,
       local_image_path = ?,
       updated_at = ?,
@@ -181,9 +190,10 @@ export async function updateItem(
      WHERE id = ?`,
     updates.name.trim(),
     updates.brand,
+    updates.model,
     updates.categoryId,
     updates.purchasePriceUsd,
-    updates.purchaseYear,
+    updates.purchaseDate,
     updates.description,
     updates.localImagePath,
     updatedAt,
@@ -220,8 +230,8 @@ export async function searchItemsInHouse(
 
   const rows = await database.getAllAsync<ItemRow>(
     `SELECT
-      items.id, items.room_id, items.name, items.brand, items.category_id,
-      items.purchase_price_usd, items.purchase_year, items.description,
+      items.id, items.room_id, items.name, items.brand, items.model, items.category_id,
+      items.purchase_price_usd, items.purchase_date, items.description,
       items.local_image_path, items.drive_image_url, items.sheet_row_id,
       items.updated_at, items.sync_status
      FROM items
@@ -255,11 +265,7 @@ export async function searchItemsInRoom(
   const likePattern = `%${trimmedSearchText}%`;
 
   const rows = await database.getAllAsync<ItemRow>(
-    `SELECT
-      id, room_id, name, brand, category_id,
-      purchase_price_usd, purchase_year, description,
-      local_image_path, drive_image_url, sheet_row_id,
-      updated_at, sync_status
+    `SELECT ${ITEM_SELECT_COLUMNS}
      FROM items
      WHERE room_id = ?
        AND (name LIKE ? OR IFNULL(description, '') LIKE ?)
@@ -299,14 +305,17 @@ export async function getHouseTotals(
 }
 
 type ExportInventoryRowSql = {
+  item_id: number;
   room_name: string;
   item_name: string;
   brand: string | null;
+  model: string | null;
   category_name: string | null;
   purchase_price_usd: number;
-  purchase_year: number | null;
+  purchase_date: string | null;
   description: string | null;
   local_image_path: string | null;
+  drive_image_url: string | null;
 };
 
 /**
@@ -319,14 +328,17 @@ export async function getExportRowsForHouse(
 ): Promise<ExportInventoryRow[]> {
   const rows = await database.getAllAsync<ExportInventoryRowSql>(
     `SELECT
+      items.id AS item_id,
       rooms.name AS room_name,
       items.name AS item_name,
       items.brand AS brand,
+      items.model AS model,
       categories.name AS category_name,
       items.purchase_price_usd AS purchase_price_usd,
-      items.purchase_year AS purchase_year,
+      items.purchase_date AS purchase_date,
       items.description AS description,
-      items.local_image_path AS local_image_path
+      items.local_image_path AS local_image_path,
+      items.drive_image_url AS drive_image_url
      FROM items
      INNER JOIN rooms ON rooms.id = items.room_id
      LEFT JOIN categories ON categories.id = items.category_id
@@ -335,16 +347,64 @@ export async function getExportRowsForHouse(
     houseId,
   );
 
-  return rows.map((row) => ({
-    roomName: row.room_name,
-    itemName: row.item_name,
-    brand: row.brand ?? '',
-    categoryName: row.category_name ?? '',
-    purchasePriceUsd: row.purchase_price_usd,
-    purchaseYear: row.purchase_year !== null ? String(row.purchase_year) : '',
-    description: row.description ?? '',
-    localImagePath: row.local_image_path,
-  }));
+  const exportRows: ExportInventoryRow[] = [];
+
+  for (const row of rows) {
+    const itemImages = await database.getAllAsync<{
+      local_path: string | null;
+      is_primary: number;
+      drive_image_url: string | null;
+    }>(
+      `SELECT local_path, is_primary, drive_image_url
+       FROM item_images
+       WHERE item_id = ?
+       ORDER BY sort_order ASC, id ASC`,
+      row.item_id,
+    );
+
+    // Primary first for PDF cards; remaining photos keep sort_order.
+    const primaryImageRows = itemImages.filter((imageRow) => imageRow.is_primary === 1);
+    const otherImageRows = itemImages.filter((imageRow) => imageRow.is_primary !== 1);
+    const orderedImageRows = [...primaryImageRows, ...otherImageRows];
+
+    // Keep blank placeholders so an unsynced primary never shifts an additional URL
+    // into the CSV's "Primary Photo" column.
+    const driveImageUrls = orderedImageRows.map((imageRow) => {
+      return imageRow.drive_image_url ?? '';
+    });
+
+    if (driveImageUrls.length === 0 && row.drive_image_url !== null) {
+      driveImageUrls.push(row.drive_image_url);
+    }
+
+    const localImagePaths = orderedImageRows
+      .map((imageRow) => imageRow.local_path)
+      .filter((localPath): localPath is string => {
+        return localPath !== null && localPath.trim().length > 0;
+      });
+
+    // Fall back to denormalized primary when item_images is empty but path exists.
+    if (localImagePaths.length === 0 && row.local_image_path !== null) {
+      localImagePaths.push(row.local_image_path);
+    }
+
+    exportRows.push({
+      roomName: row.room_name,
+      itemName: row.item_name,
+      brand: row.brand ?? '',
+      model: row.model ?? '',
+      categoryName: row.category_name ?? '',
+      purchasePriceUsd: row.purchase_price_usd,
+      purchaseDate: row.purchase_date ?? '',
+      description: row.description ?? '',
+      localImagePath: row.local_image_path,
+      localImagePaths,
+      photoCount: Math.max(itemImages.length, localImagePaths.length),
+      driveImageUrls,
+    });
+  }
+
+  return exportRows;
 }
 
 type SyncInventoryRowSql = {
@@ -353,9 +413,10 @@ type SyncInventoryRowSql = {
   room_name: string;
   item_name: string;
   brand: string | null;
+  model: string | null;
   category_name: string | null;
   purchase_price_usd: number;
-  purchase_year: number | null;
+  purchase_date: string | null;
   description: string | null;
   local_image_path: string | null;
   updated_at: string;
@@ -375,9 +436,10 @@ export async function getSyncRowsForHouse(
       rooms.name AS room_name,
       items.name AS item_name,
       items.brand AS brand,
+      items.model AS model,
       categories.name AS category_name,
       items.purchase_price_usd AS purchase_price_usd,
-      items.purchase_year AS purchase_year,
+      items.purchase_date AS purchase_date,
       items.description AS description,
       items.local_image_path AS local_image_path,
       items.updated_at AS updated_at
@@ -389,19 +451,49 @@ export async function getSyncRowsForHouse(
     houseId,
   );
 
-  return rows.map((row) => ({
-    itemId: row.item_id,
-    sheetRowId: row.sheet_row_id,
-    roomName: row.room_name,
-    itemName: row.item_name,
-    brand: row.brand ?? '',
-    categoryName: row.category_name ?? '',
-    purchasePriceUsd: row.purchase_price_usd,
-    purchaseYear: row.purchase_year,
-    description: row.description ?? '',
-    localImagePath: row.local_image_path,
-    updatedAt: row.updated_at,
-  }));
+  const syncRows: SyncInventoryRow[] = [];
+
+  for (const row of rows) {
+    const imageRows = await database.getAllAsync<{
+      id: number;
+      item_id: number;
+      local_path: string | null;
+      sort_order: number;
+      is_primary: number;
+      drive_image_url: string | null;
+    }>(
+      `SELECT id, item_id, local_path, sort_order, is_primary, drive_image_url
+       FROM item_images
+       WHERE item_id = ?
+       ORDER BY sort_order ASC, id ASC`,
+      row.item_id,
+    );
+
+    syncRows.push({
+      itemId: row.item_id,
+      sheetRowId: row.sheet_row_id,
+      roomName: row.room_name,
+      itemName: row.item_name,
+      brand: row.brand ?? '',
+      model: row.model ?? '',
+      categoryName: row.category_name ?? '',
+      purchasePriceUsd: row.purchase_price_usd,
+      purchaseDate: row.purchase_date,
+      description: row.description ?? '',
+      localImagePath: row.local_image_path,
+      images: imageRows.map((imageRow) => ({
+        id: imageRow.id,
+        itemId: imageRow.item_id,
+        localPath: imageRow.local_path,
+        sortOrder: imageRow.sort_order,
+        isPrimary: imageRow.is_primary === 1,
+        driveImageUrl: imageRow.drive_image_url,
+      })),
+      updatedAt: row.updated_at,
+    });
+  }
+
+  return syncRows;
 }
 
 /**
@@ -428,6 +520,21 @@ export async function markItemsSyncedFromUploadResults(
       uploadResult.driveImageUrl,
       uploadResult.clientItemId,
     );
+
+    // Persist per-photo Drive URLs when the gateway returned them.
+    if (uploadResult.images !== undefined) {
+      for (const uploadedImage of uploadResult.images) {
+        if (uploadedImage.imageId === null) {
+          continue;
+        }
+
+        await updateItemImagePaths(database, uploadedImage.imageId, {
+          driveImageUrl: uploadedImage.driveImageUrl,
+        });
+      }
+
+      await syncItemPrimaryImageColumns(database, uploadResult.clientItemId);
+    }
   }
 }
 
@@ -441,8 +548,8 @@ export async function getItemBySheetRowIdInHouse(
 ): Promise<Item | null> {
   const row = await database.getFirstAsync<ItemRow>(
     `SELECT
-      items.id, items.room_id, items.name, items.brand, items.category_id,
-      items.purchase_price_usd, items.purchase_year, items.description,
+      items.id, items.room_id, items.name, items.brand, items.model, items.category_id,
+      items.purchase_price_usd, items.purchase_date, items.description,
       items.local_image_path, items.drive_image_url, items.sheet_row_id,
       items.updated_at, items.sync_status
      FROM items
@@ -470,11 +577,7 @@ export async function getItemByRoomIdAndName(
   itemName: string,
 ): Promise<Item | null> {
   const row = await database.getFirstAsync<ItemRow>(
-    `SELECT
-      id, room_id, name, brand, category_id,
-      purchase_price_usd, purchase_year, description,
-      local_image_path, drive_image_url, sheet_row_id,
-      updated_at, sync_status
+    `SELECT ${ITEM_SELECT_COLUMNS}
      FROM items
      WHERE room_id = ?
        AND name = ? COLLATE NOCASE
@@ -500,9 +603,10 @@ export async function applyImportedItemFields(
     roomId: number;
     name: string;
     brand: string | null;
+    model: string | null;
     categoryId: number | null;
     purchasePriceUsd: number;
-    purchaseYear: number | null;
+    purchaseDate: string | null;
     description: string | null;
     localImagePath: string | null;
     driveImageUrl: string | null;
@@ -515,9 +619,10 @@ export async function applyImportedItemFields(
       room_id = ?,
       name = ?,
       brand = ?,
+      model = ?,
       category_id = ?,
       purchase_price_usd = ?,
-      purchase_year = ?,
+      purchase_date = ?,
       description = ?,
       local_image_path = ?,
       drive_image_url = ?,
@@ -528,9 +633,10 @@ export async function applyImportedItemFields(
     updates.roomId,
     updates.name.trim(),
     updates.brand,
+    updates.model,
     updates.categoryId,
     updates.purchasePriceUsd,
-    updates.purchaseYear,
+    updates.purchaseDate,
     updates.description,
     updates.localImagePath,
     updates.driveImageUrl,
@@ -549,9 +655,10 @@ export async function createItemFromImport(
     roomId: number;
     name: string;
     brand: string | null;
+    model: string | null;
     categoryId: number | null;
     purchasePriceUsd: number;
-    purchaseYear: number | null;
+    purchaseDate: string | null;
     description: string | null;
     localImagePath: string | null;
     driveImageUrl: string | null;
@@ -564,22 +671,24 @@ export async function createItemFromImport(
       room_id,
       name,
       brand,
+      model,
       category_id,
       purchase_price_usd,
-      purchase_year,
+      purchase_date,
       description,
       local_image_path,
       drive_image_url,
       sheet_row_id,
       updated_at,
       sync_status
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced')`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced')`,
     input.roomId,
     input.name.trim(),
     input.brand,
+    input.model,
     input.categoryId,
     input.purchasePriceUsd,
-    input.purchaseYear,
+    input.purchaseDate,
     input.description,
     input.localImagePath,
     input.driveImageUrl,

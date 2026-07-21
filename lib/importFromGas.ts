@@ -4,14 +4,26 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { getOrCreateCategoryByName } from '@/db/categories';
 import {
+  createItemImage,
+  deleteAllImagesForItem,
+  getImagesByItemId,
+  syncItemPrimaryImageColumns,
+  updateItemImagePaths,
+} from '@/db/itemImages';
+import {
   applyImportedItemFields,
   createItemFromImport,
   getItemByRoomIdAndName,
   getItemBySheetRowIdInHouse,
 } from '@/db/items';
 import { getOrCreateRoomByName } from '@/db/rooms';
-import { buildItemImageFileName } from '@/lib/images';
-import type { GasDownloadItem } from '@/types/gasSync';
+import { deleteLocalImageIfExists } from '@/lib/images';
+import {
+  buildFinalItemImageFileName,
+  buildStagedItemImageFileName,
+  renameLocalItemImageFile,
+} from '@/lib/itemImageFiles';
+import type { GasDownloadItem, GasItemImageMetadata } from '@/types/gasSync';
 import type { House } from '@/types/inventory';
 
 export type ImportFromGasSummary = {
@@ -35,7 +47,7 @@ async function downloadDriveImageToHouseFolder(
   try {
     await FileSystem.makeDirectoryAsync(houseFolderPath, { intermediates: true });
 
-    const destinationUri = `${houseFolderPath}${buildItemImageFileName()}`;
+    const destinationUri = `${houseFolderPath}${buildStagedItemImageFileName()}`;
     const downloadResult = await FileSystem.downloadAsync(
       driveImageUrl.trim(),
       destinationUri,
@@ -51,6 +63,115 @@ async function downloadDriveImageToHouseFolder(
     console.log('downloadDriveImageToHouseFolder skipped:', error);
     return null;
   }
+}
+
+/**
+ * Builds ordered image metadata from download payload, falling back to primary URL.
+ */
+function buildImportImageMetadataList(
+  downloadItem: GasDownloadItem,
+): GasItemImageMetadata[] {
+  if (downloadItem.images.length > 0) {
+    return [...downloadItem.images].sort((left, right) => left.sortOrder - right.sortOrder);
+  }
+
+  if (downloadItem.driveImageUrl === null || downloadItem.driveImageUrl.trim().length === 0) {
+    return [];
+  }
+
+  return [
+    {
+      imageId: null,
+      imageNumber: 1,
+      sortOrder: 0,
+      isPrimary: true,
+      driveImageUrl: downloadItem.driveImageUrl,
+    },
+  ];
+}
+
+/**
+ * Replaces local item_images with cloud photos (download + finalize filenames).
+ */
+async function replaceItemImagesFromCloud(options: {
+  database: SQLiteDatabase;
+  itemId: number;
+  houseName: string;
+  itemName: string;
+  houseFolderPath: string;
+  imageMetadataList: GasItemImageMetadata[];
+}): Promise<{ primaryLocalPath: string | null; primaryDriveUrl: string | null }> {
+  const {
+    database,
+    itemId,
+    houseName,
+    itemName,
+    houseFolderPath,
+    imageMetadataList,
+  } = options;
+
+  const existingImages = await getImagesByItemId(database, itemId);
+
+  for (const existingImage of existingImages) {
+    await deleteLocalImageIfExists(existingImage.localPath);
+  }
+
+  await deleteAllImagesForItem(database, itemId);
+
+  let primaryLocalPath: string | null = null;
+  let primaryDriveUrl: string | null = null;
+
+  for (let imageIndex = 0; imageIndex < imageMetadataList.length; imageIndex += 1) {
+    const imageMetadata = imageMetadataList[imageIndex];
+    const downloadedLocalPath = await downloadDriveImageToHouseFolder(
+      imageMetadata.driveImageUrl,
+      houseFolderPath,
+    );
+
+    const isPrimary =
+      imageMetadata.isPrimary ||
+      (imageIndex === 0 && !imageMetadataList.some((entry) => entry.isPrimary));
+
+    const createdImage = await createItemImage(database, {
+      itemId,
+      localPath: downloadedLocalPath,
+      sortOrder: imageMetadata.sortOrder ?? imageIndex,
+      isPrimary,
+      driveImageUrl: imageMetadata.driveImageUrl,
+    });
+
+    if (downloadedLocalPath !== null) {
+      const finalFileName = buildFinalItemImageFileName({
+        houseName,
+        itemName,
+        imageNumberOneBased: imageIndex + 1,
+        photoDatabaseId: createdImage.id,
+      });
+      const finalLocalPath = await renameLocalItemImageFile({
+        currentLocalPath: downloadedLocalPath,
+        houseFolderPath,
+        finalFileName,
+      });
+
+      await updateItemImagePaths(database, createdImage.id, {
+        localPath: finalLocalPath,
+      });
+
+      if (isPrimary) {
+        primaryLocalPath = finalLocalPath;
+      }
+    } else if (isPrimary) {
+      primaryLocalPath = null;
+    }
+
+    if (isPrimary) {
+      primaryDriveUrl = imageMetadata.driveImageUrl;
+    }
+  }
+
+  await syncItemPrimaryImageColumns(database, itemId);
+
+  return { primaryLocalPath, primaryDriveUrl };
 }
 
 /**
@@ -85,17 +206,10 @@ async function importOneDownloadItem(
     existingItem = await getItemByRoomIdAndName(database, room.id, trimmedItemName);
   }
 
-  const downloadedLocalImagePath = await downloadDriveImageToHouseFolder(
-    downloadItem.driveImageUrl,
-    house.folderPath,
-  );
-
-  // Keep an existing local photo if Drive download failed.
-  const nextLocalImagePath =
-    downloadedLocalImagePath ?? existingItem?.localImagePath ?? null;
-
   const brandValue =
     downloadItem.brand.trim().length > 0 ? downloadItem.brand.trim() : null;
+  const modelValue =
+    downloadItem.model.trim().length > 0 ? downloadItem.model.trim() : null;
   const descriptionValue =
     downloadItem.description.trim().length > 0
       ? downloadItem.description.trim()
@@ -105,37 +219,63 @@ async function importOneDownloadItem(
       ? downloadItem.updatedAt
       : new Date().toISOString();
 
+  const imageMetadataList = buildImportImageMetadataList(downloadItem);
+
   if (existingItem !== null) {
     await applyImportedItemFields(database, existingItem.id, {
       roomId: room.id,
       name: trimmedItemName,
       brand: brandValue,
+      model: modelValue,
       categoryId,
       purchasePriceUsd: downloadItem.purchasePriceUsd,
-      purchaseYear: downloadItem.purchaseYear,
+      purchaseDate: downloadItem.purchaseDate,
       description: descriptionValue,
-      localImagePath: nextLocalImagePath,
+      localImagePath: existingItem.localImagePath,
       driveImageUrl: downloadItem.driveImageUrl,
       sheetRowId: downloadItem.sheetRowId,
       updatedAt: updatedAtValue,
     });
 
+    if (imageMetadataList.length > 0) {
+      await replaceItemImagesFromCloud({
+        database,
+        itemId: existingItem.id,
+        houseName: house.name,
+        itemName: trimmedItemName,
+        houseFolderPath: house.folderPath,
+        imageMetadataList,
+      });
+    }
+
     return 'updated';
   }
 
-  await createItemFromImport(database, {
+  const createdItem = await createItemFromImport(database, {
     roomId: room.id,
     name: trimmedItemName,
     brand: brandValue,
+    model: modelValue,
     categoryId,
     purchasePriceUsd: downloadItem.purchasePriceUsd,
-    purchaseYear: downloadItem.purchaseYear,
+    purchaseDate: downloadItem.purchaseDate,
     description: descriptionValue,
-    localImagePath: nextLocalImagePath,
+    localImagePath: null,
     driveImageUrl: downloadItem.driveImageUrl,
     sheetRowId: downloadItem.sheetRowId,
     updatedAt: updatedAtValue,
   });
+
+  if (imageMetadataList.length > 0) {
+    await replaceItemImagesFromCloud({
+      database,
+      itemId: createdItem.id,
+      houseName: house.name,
+      itemName: trimmedItemName,
+      houseFolderPath: house.folderPath,
+      imageMetadataList,
+    });
+  }
 
   return 'created';
 }

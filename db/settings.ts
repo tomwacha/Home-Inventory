@@ -83,3 +83,18 @@ export async function updateAppSettings(
     updates.defaultImageSource,
   );
 }
+
+/**
+ * Saves only the default photo source so other unsaved Settings fields stay untouched.
+ */
+export async function updateDefaultImageSource(
+  database: SQLiteDatabase,
+  defaultImageSource: DefaultImageSource,
+): Promise<void> {
+  await database.runAsync(
+    `UPDATE app_settings
+     SET default_image_source = ?
+     WHERE id = 1`,
+    defaultImageSource,
+  );
+}

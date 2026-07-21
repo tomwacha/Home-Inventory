@@ -8,11 +8,12 @@ import {
  * Unit tests for pure image helpers (no camera or file system needed).
  */
 describe('buildItemImageFileName', () => {
-  // Confirms the file name embeds the timestamp for uniqueness.
-  test('builds a jpeg name from a timestamp', () => {
+  // Confirms the staged file name embeds the timestamp for uniqueness.
+  test('builds a staged jpeg name from a timestamp', () => {
     const fileName = buildItemImageFileName(1_700_000_000_000);
 
-    expect(fileName).toBe('item-1700000000000.jpg');
+    expect(fileName.startsWith('staged-1700000000000-')).toBe(true);
+    expect(fileName.endsWith('.jpg')).toBe(true);
   });
 });
 
