@@ -19,6 +19,7 @@ Cloud gateway deploy guide: [gas/README.md](gas/README.md).
 
 ### Inventory management
 - Multiple houses, rooms, and items with categories
+- Item fields include brand, **model**, category, purchase price, **purchase date** (`YYYY-MM-DD`), and description
 - Search items by name or description within a house, and within a single room
 - House totals on the house page (rooms, item count, and purchase value)
 - Required-name fields marked with `*` on house, room, item, category, and policy forms
@@ -28,24 +29,27 @@ Cloud gateway deploy guide: [gas/README.md](gas/README.md).
 
 ### Photos
 - Camera or gallery capture via `expo-image-picker`
-- Settings → **Default photo source** for empty photo taps (faster Add Item); changing an existing photo still shows camera / gallery / remove
+- Settings → **Default photo source** auto-saves Camera/Gallery for empty photo taps (faster Add Item); changing an existing photo still shows camera / gallery / remove
+- **Multiple photos per item**: primary photo + thumbnail strip + Add photo; filenames like `House Name - Item Name - NN - PhotoDatabaseID.jpg`
 - Automatic downscale (max 1024px) and JPEG compression (quality 0.7)
 - Per-house photo folders on device
-- Thumbnails on room lists; full image on item detail
+- Thumbnails on room lists; primary + strip on item detail
 
 ### Offline export
-- PDF with embedded photos (`expo-print`)
-- CSV spreadsheet text
+- **Landscape Letter PDF** with a **2×2** inventory grid; items with 2+ photos also get full-page photo sheets (`expo-print`)
+- CSV spreadsheet text (includes photo count and Drive image URLs when synced)
 - System share sheet (`expo-sharing`) for email, Drive, Files, etc.
 
 ### Cloud sync (optional)
 - Settings → **Cloud Sync Settings** for Web App URL and Drive folder id (separate from photo defaults)
 - Settings footer shows the app version from `app.json`
-- Export → Google Sheets: upload rows + photos; duplicate skip/override prompt
-- Import → merge Sheet rows for the current house into SQLite (does not wipe phone-only items)
+- Export → Google Sheets: upload rows + **every item photo**; duplicate skip/override prompt
+- Import → merge Sheet rows for the current house into SQLite (restores all photo URLs when present; does not wipe phone-only items)
 - Sync status shown on item detail (`Local only` / `Synced`)
 
 **Note:** Deletes are local only. Removing data on the phone does not remove Sheet rows or Drive files, and vice versa.
+
+When upgrading an existing Sheet after this release, follow the column migration notes in [gas/README.md](gas/README.md) (`model`, `purchase_date`, `item_images_json`) before redeploying `Code.gs`.
 
 ---
 
@@ -178,7 +182,7 @@ If a URL may have leaked, delete or replace the Apps Script deployment and updat
 | Add a house | Welcome → Add House |
 | Open a house | Welcome list, or header **Select house** |
 | Add rooms / items | House → Add Room → room → Add Item |
-| Add another item in the same room | Item detail → Add Item |
+| Add another item in the same room | Item detail → **Add Another Item** |
 | Search within a room | Room page search box (above Add Item) |
 | Manage categories | House → Manage Categories |
 | Rename / delete house | House → Edit House |
@@ -197,8 +201,8 @@ If a URL may have leaked, delete or replace the Apps Script deployment and updat
 app/                 Expo Router screens
 components/          Shared UI (header, form scroll helpers, image picker)
 constants/           Colors and shared StyleSheet tokens
-db/                  SQLite schema helpers (houses, rooms, items, categories, settings, insurance policies)
-lib/                 Pure helpers (images, export, GAS client, import, confirms)
+db/                  SQLite schema helpers (houses, rooms, items, item images, categories, settings, insurance policies)
+lib/                 Pure helpers (images, export, GAS client, import, photo filenames, confirms)
 types/               Shared TypeScript contracts (inventory + gasSync)
 gas/                 Apps Script source + deploy docs
 __tests__/           Jest unit tests and light screen smoke tests

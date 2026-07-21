@@ -1,17 +1,25 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from 'react-native';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 import { screenStyles } from '@/constants/screenStyles';
 import { getCategoryById } from '@/db/categories';
+import { getImagesByItemId } from '@/db/itemImages';
 import { getItemById } from '@/db/items';
-import type { Item } from '@/types/inventory';
+import type { Item, ItemImage } from '@/types/inventory';
 
 /**
- * Item detail page (Feature 5) with full local photo when present.
+ * Item detail page (Feature 5) with primary photo + thumbnail strip.
  * Delete lives on Edit Item to avoid accidental taps next to Edit / Back.
  */
 export default function ItemDetailScreen() {
@@ -34,6 +42,8 @@ export default function ItemDetailScreen() {
   const router = useRouter();
 
   const [item, setItem] = useState<Item | null>(null);
+  const [itemImages, setItemImages] = useState<ItemImage[]>([]);
+  const [selectedImagePath, setSelectedImagePath] = useState<string | null>(null);
   const [categoryName, setCategoryName] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -46,6 +56,7 @@ export default function ItemDetailScreen() {
 
         try {
           const loadedItem = await getItemById(database, itemId);
+          const loadedImages = await getImagesByItemId(database, itemId);
           let loadedCategoryName: string | null = null;
 
           if (loadedItem?.categoryId !== null && loadedItem?.categoryId !== undefined) {
@@ -55,6 +66,12 @@ export default function ItemDetailScreen() {
 
           if (isStillFocused) {
             setItem(loadedItem);
+            setItemImages(loadedImages);
+            const primaryImage =
+              loadedImages.find((image) => image.isPrimary) ?? loadedImages[0] ?? null;
+            setSelectedImagePath(
+              primaryImage?.localPath ?? loadedItem?.localImagePath ?? null,
+            );
             setCategoryName(loadedCategoryName);
           }
         } catch (error) {
@@ -116,9 +133,9 @@ export default function ItemDetailScreen() {
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
       contentContainerStyle={screenStyles.container}>
-      {item.localImagePath !== null ? (
+      {selectedImagePath !== null ? (
         <Image
-          source={{ uri: item.localImagePath }}
+          source={{ uri: selectedImagePath }}
           style={{
             width: '100%',
             height: 260,
@@ -140,9 +157,52 @@ export default function ItemDetailScreen() {
         </View>
       )}
 
+      {itemImages.length > 1 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ marginBottom: 12 }}
+          contentContainerStyle={{ flexDirection: 'row', gap: 8 }}>
+          {itemImages.map((image) => {
+            if (image.localPath === null) {
+              return null;
+            }
+
+            const isSelected = image.localPath === selectedImagePath;
+
+            return (
+              <Pressable
+                key={image.id}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  image.isPrimary ? 'Primary photo' : 'Additional photo'
+                }
+                onPress={() => setSelectedImagePath(image.localPath)}
+                style={{
+                  width: 64,
+                  height: 64,
+                  borderRadius: 8,
+                  overflow: 'hidden',
+                  borderWidth: isSelected ? 2 : 1,
+                  borderColor: isSelected ? colors.tint : colors.border,
+                }}>
+                <Image
+                  source={{ uri: image.localPath }}
+                  style={{ width: '100%', height: '100%' }}
+                  resizeMode="cover"
+                />
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      ) : null}
+
       <Text style={[screenStyles.title, { color: colors.text }]}>{item.name}</Text>
       <Text style={[screenStyles.metaText, { color: colors.text }]}>
         Brand: {item.brand ?? '—'}
+      </Text>
+      <Text style={[screenStyles.metaText, { color: colors.text }]}>
+        Model: {item.model ?? '—'}
       </Text>
       <Text style={[screenStyles.metaText, { color: colors.text }]}>
         Category: {categoryName ?? '—'}
@@ -151,7 +211,7 @@ export default function ItemDetailScreen() {
         Purchase price: ${item.purchasePriceUsd.toFixed(2)}
       </Text>
       <Text style={[screenStyles.metaText, { color: colors.text }]}>
-        Purchase year: {item.purchaseYear ?? '—'}
+        Purchase date: {item.purchaseDate ?? '—'}
       </Text>
       <Text style={[screenStyles.label, { color: colors.text }]}>Description</Text>
       <Text style={[{ color: colors.text, fontSize: 16, lineHeight: 22 }]}>
@@ -174,7 +234,7 @@ export default function ItemDetailScreen() {
         style={[screenStyles.secondaryButton, { borderColor: colors.border }]}
         onPress={() => router.push(`/house/${houseId}/room/${roomId}/add-item`)}>
         <Text style={[screenStyles.secondaryButtonText, { color: colors.text }]}>
-          Add Item
+          Add Another Item
         </Text>
       </Pressable>
 

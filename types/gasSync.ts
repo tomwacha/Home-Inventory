@@ -8,6 +8,30 @@
 /** How the upload should treat rows that already exist in the Sheet. */
 export type GasDuplicateMode = 'skip' | 'override';
 
+/** One photo inside an upload/download item (ordered; one may be primary). */
+export type GasItemImagePayload = {
+  /** Local item_images.id when known. */
+  imageId: number | null;
+  /** 1-based display order (matches filename NN). */
+  imageNumber: number;
+  sortOrder: number;
+  isPrimary: boolean;
+  /** Raw Base64 (no data: prefix). Null when reusing an existing Drive URL. */
+  imageBase64: string | null;
+  imageMimeType: 'image/jpeg';
+  /** Existing Drive URL when the photo was uploaded before. */
+  driveImageUrl: string | null;
+};
+
+/** Compact metadata stored in the Sheet for import rebuild (no Base64). */
+export type GasItemImageMetadata = {
+  imageId: number | null;
+  imageNumber: number;
+  sortOrder: number;
+  isPrimary: boolean;
+  driveImageUrl: string | null;
+};
+
 /** One inventory item in an upload payload (image already Base64 on the phone). */
 export type GasUploadItem = {
   /** Local SQLite item id (helpful for mapping responses). */
@@ -18,13 +42,20 @@ export type GasUploadItem = {
   roomName: string;
   name: string;
   brand: string;
+  model: string;
   categoryName: string;
   purchasePriceUsd: number;
-  purchaseYear: number | null;
+  /** YYYY-MM-DD when known; null when blank. */
+  purchaseDate: string | null;
   description: string;
-  /** Raw Base64 (no data:image/... prefix). Null when there is no photo. */
+  /**
+   * Primary photo Base64 for older gateways / compatibility.
+   * Prefer `images` when present.
+   */
   imageBase64: string | null;
   imageMimeType: 'image/jpeg';
+  /** Every local photo in order (primary first is not required; use isPrimary). */
+  images: GasItemImagePayload[];
   updatedAt: string;
 };
 
@@ -59,10 +90,19 @@ export type GasCheckDuplicatesResponse = {
   duplicates: GasDuplicateMatch[];
 };
 
+export type GasUploadResultImage = {
+  imageId: number | null;
+  driveImageUrl: string | null;
+  imageNumber: number;
+  isPrimary: boolean;
+};
+
 export type GasUploadResultItem = {
   clientItemId: number;
   sheetRowId: string;
+  /** Primary Drive URL (compat with older clients). */
   driveImageUrl: string | null;
+  images?: GasUploadResultImage[];
   status: 'created' | 'updated' | 'skipped';
 };
 
@@ -79,11 +119,16 @@ export type GasDownloadItem = {
   roomName: string;
   name: string;
   brand: string;
+  model: string;
   categoryName: string;
   purchasePriceUsd: number;
-  purchaseYear: number | null;
+  /** YYYY-MM-DD when known; null when blank. */
+  purchaseDate: string | null;
   description: string;
+  /** Primary Drive URL for compatibility. */
   driveImageUrl: string | null;
+  /** Ordered photo metadata for rebuilding item_images (may be empty). */
+  images: GasItemImageMetadata[];
   updatedAt: string;
 };
 

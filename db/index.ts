@@ -40,6 +40,15 @@ export {
   getExportRowsForHouse,
 } from '@/db/items';
 
+export {
+  createItemImage,
+  getImagesByItemId,
+  getItemImageById,
+  syncItemPrimaryImageColumns,
+  updateItemImagePaths,
+  deleteItemImage,
+} from '@/db/itemImages';
+
 export { getAppSettings, updateAppSettings } from '@/db/settings';
 
 export {

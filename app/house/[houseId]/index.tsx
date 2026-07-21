@@ -188,35 +188,49 @@ export default function HouseMainScreen() {
         </Pressable>
       </View>
 
-      <Pressable
-        style={[screenStyles.primaryButton, { backgroundColor: colors.tint }]}
-        onPress={() => router.push(`/house/${houseId}/add-room`)}>
-        <Text style={screenStyles.primaryButtonText}>Add Room</Text>
-      </Pressable>
+      <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+        <Pressable
+          style={[
+            screenStyles.primaryButton,
+            { flex: 1, backgroundColor: colors.tint, marginTop: 0 },
+          ]}
+          onPress={() => router.push(`/house/${houseId}/add-room`)}>
+          <Text style={screenStyles.primaryButtonText}>Add Room</Text>
+        </Pressable>
+        <Pressable
+          style={[
+            screenStyles.secondaryButton,
+            { flex: 1, borderColor: colors.border, marginTop: 0 },
+          ]}
+          onPress={() => router.push(`/house/${houseId}/edit`)}>
+          <Text style={[screenStyles.secondaryButtonText, { color: colors.text }]}>
+            Edit House
+          </Text>
+        </Pressable>
+      </View>
 
-      <Pressable
-        style={[screenStyles.secondaryButton, { borderColor: colors.border }]}
-        onPress={() => router.push(`/house/${houseId}/edit`)}>
-        <Text style={[screenStyles.secondaryButtonText, { color: colors.text }]}>
-          Edit House
-        </Text>
-      </Pressable>
-
-      <Pressable
-        style={[screenStyles.secondaryButton, { borderColor: colors.border }]}
-        onPress={() => router.push(`/house/${houseId}/policies`)}>
-        <Text style={[screenStyles.secondaryButtonText, { color: colors.text }]}>
-          View Policies
-        </Text>
-      </Pressable>
-
-      <Pressable
-        style={[screenStyles.secondaryButton, { borderColor: colors.border }]}
-        onPress={() => router.push('/categories')}>
-        <Text style={[screenStyles.secondaryButtonText, { color: colors.text }]}>
-          Manage Categories
-        </Text>
-      </Pressable>
+      <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+        <Pressable
+          style={[
+            screenStyles.secondaryButton,
+            { flex: 1, borderColor: colors.border, marginTop: 0 },
+          ]}
+          onPress={() => router.push(`/house/${houseId}/policies`)}>
+          <Text style={[screenStyles.secondaryButtonText, { color: colors.text }]}>
+            View Policies
+          </Text>
+        </Pressable>
+        <Pressable
+          style={[
+            screenStyles.secondaryButton,
+            { flex: 1, borderColor: colors.border, marginTop: 0 },
+          ]}
+          onPress={() => router.push('/categories')}>
+          <Text style={[screenStyles.secondaryButtonText, { color: colors.text }]}>
+            Manage Categories
+          </Text>
+        </Pressable>
+      </View>
 
       <Text style={[screenStyles.label, { color: colors.text }]}>
         {isSearching ? 'Search results' : 'Rooms'}

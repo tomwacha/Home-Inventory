@@ -3,8 +3,8 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
-import ImagePickerField from '@/components/ImagePickerField';
 import CategoryDropdown from '@/components/CategoryDropdown';
+import ItemPhotoStrip from '@/components/ItemPhotoStrip';
 import KeyboardAwareFormScroll, {
   FormTextInput,
 } from '@/components/KeyboardAwareFormScroll';
@@ -13,13 +13,22 @@ import Colors from '@/constants/Colors';
 import { screenStyles } from '@/constants/screenStyles';
 import { getAllCategories } from '@/db/categories';
 import { getHouseById } from '@/db/houses';
+import { getImagesByItemId } from '@/db/itemImages';
 import { deleteItem, getItemById, updateItem } from '@/db/items';
 import { confirmDestructiveAction } from '@/lib/confirmDestructiveAction';
+import {
+  isValidOptionalYyyyMmDd,
+  normalizeOptionalYyyyMmDd,
+} from '@/lib/dateText';
 import { deleteLocalImageIfExists } from '@/lib/images';
+import {
+  persistDraftItemPhotos,
+  type DraftItemPhoto,
+} from '@/lib/persistItemPhotos';
 import type { Category } from '@/types/inventory';
 
 /**
- * Edit Item form (Feature 6) with photo replace/remove (Feature 11).
+ * Edit Item form (Feature 6) with multi-photo replace/remove.
  */
 export default function EditItemScreen() {
   const {
@@ -41,14 +50,16 @@ export default function EditItemScreen() {
   const router = useRouter();
 
   const [categories, setCategories] = useState<Category[]>([]);
+  const [houseName, setHouseName] = useState('');
   const [houseFolderPath, setHouseFolderPath] = useState('');
   const [itemName, setItemName] = useState('');
   const [brand, setBrand] = useState('');
+  const [model, setModel] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [purchasePriceText, setPurchasePriceText] = useState('');
-  const [purchaseYearText, setPurchaseYearText] = useState('');
+  const [purchaseDateText, setPurchaseDateText] = useState('');
   const [description, setDescription] = useState('');
-  const [localImagePath, setLocalImagePath] = useState<string | null>(null);
+  const [photoDrafts, setPhotoDrafts] = useState<DraftItemPhoto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -65,12 +76,14 @@ export default function EditItemScreen() {
           const loadedItem = await getItemById(database, itemId);
           const loadedCategories = await getAllCategories(database);
           const loadedHouse = await getHouseById(database, houseId);
+          const loadedImages = await getImagesByItemId(database, itemId);
 
           if (!isStillFocused) {
             return;
           }
 
           setCategories(loadedCategories);
+          setHouseName(loadedHouse?.name ?? '');
           setHouseFolderPath(loadedHouse?.folderPath ?? '');
 
           if (loadedItem === null) {
@@ -80,13 +93,38 @@ export default function EditItemScreen() {
 
           setItemName(loadedItem.name);
           setBrand(loadedItem.brand ?? '');
+          setModel(loadedItem.model ?? '');
           setSelectedCategoryId(loadedItem.categoryId);
           setPurchasePriceText(String(loadedItem.purchasePriceUsd));
-          setPurchaseYearText(
-            loadedItem.purchaseYear !== null ? String(loadedItem.purchaseYear) : '',
-          );
+          setPurchaseDateText(loadedItem.purchaseDate ?? '');
           setDescription(loadedItem.description ?? '');
-          setLocalImagePath(loadedItem.localImagePath);
+
+          // Fall back to denormalized primary when migration/backfill missed a row.
+          if (loadedImages.length > 0) {
+            setPhotoDrafts(
+              loadedImages.map((itemImage) => ({
+                clientKey: `image-${itemImage.id}`,
+                imageId: itemImage.id,
+                localPath: itemImage.localPath ?? '',
+                driveImageUrl: itemImage.driveImageUrl,
+                isPrimary: itemImage.isPrimary,
+                needsFinalize: false,
+              })).filter((draft) => draft.localPath.length > 0),
+            );
+          } else if (loadedItem.localImagePath !== null) {
+            setPhotoDrafts([
+              {
+                clientKey: `legacy-primary-${loadedItem.id}`,
+                imageId: null,
+                localPath: loadedItem.localImagePath,
+                driveImageUrl: loadedItem.driveImageUrl,
+                isPrimary: true,
+                needsFinalize: true,
+              },
+            ]);
+          } else {
+            setPhotoDrafts([]);
+          }
         } catch (error) {
           console.log('EditItemScreen load error:', error);
           if (isStillFocused) {
@@ -116,18 +154,20 @@ export default function EditItemScreen() {
     }
 
     const purchasePriceUsd = Number(purchasePriceText);
-    const purchaseYear =
-      purchaseYearText.trim().length === 0 ? null : Number(purchaseYearText);
 
     if (Number.isNaN(purchasePriceUsd)) {
       setErrorMessage('Purchase price must be a number.');
       return;
     }
 
-    if (purchaseYear !== null && Number.isNaN(purchaseYear)) {
-      setErrorMessage('Purchase year must be a number.');
+    if (!isValidOptionalYyyyMmDd(purchaseDateText)) {
+      setErrorMessage('Purchase date must be YYYY-MM-DD.');
       return;
     }
+
+    const purchaseDate = normalizeOptionalYyyyMmDd(purchaseDateText);
+    const primaryDraft =
+      photoDrafts.find((draft) => draft.isPrimary) ?? photoDrafts[0] ?? null;
 
     setIsSaving(true);
     setErrorMessage(null);
@@ -136,11 +176,21 @@ export default function EditItemScreen() {
       await updateItem(database, itemId, {
         name: trimmedItemName,
         brand: brand.trim().length > 0 ? brand.trim() : null,
+        model: model.trim().length > 0 ? model.trim() : null,
         categoryId: selectedCategoryId,
         purchasePriceUsd,
-        purchaseYear,
+        purchaseDate,
         description: description.trim().length > 0 ? description.trim() : null,
-        localImagePath,
+        localImagePath: primaryDraft?.localPath ?? null,
+      });
+
+      await persistDraftItemPhotos({
+        database,
+        itemId,
+        houseName,
+        itemName: trimmedItemName,
+        houseFolderPath,
+        drafts: photoDrafts,
       });
 
       router.replace(`/house/${houseId}/room/${roomId}/item/${itemId}`);
@@ -152,13 +202,13 @@ export default function EditItemScreen() {
   }
 
   /**
-   * Confirms then removes the local photo file and SQLite item row.
+   * Confirms then removes all local photo files and the SQLite item row.
    */
   function handleDeleteItemPress() {
     confirmDestructiveAction({
       title: 'Delete item?',
       message:
-        'This removes the item and its local photo from this phone. Google Sheet and Drive copies are not deleted.',
+        'This removes the item and its local photos from this phone. Google Sheet and Drive copies are not deleted.',
       confirmLabel: 'Delete item',
       onConfirm: () => {
         void (async () => {
@@ -166,7 +216,10 @@ export default function EditItemScreen() {
           setErrorMessage(null);
 
           try {
-            await deleteLocalImageIfExists(localImagePath);
+            for (const draft of photoDrafts) {
+              await deleteLocalImageIfExists(draft.localPath);
+            }
+
             await deleteItem(database, itemId);
             router.replace(`/house/${houseId}/room/${roomId}`);
           } catch (error) {
@@ -191,11 +244,12 @@ export default function EditItemScreen() {
     <KeyboardAwareFormScroll backgroundColor={colors.background}>
         <Text style={[screenStyles.title, { color: colors.text }]}>Edit Item</Text>
 
-        <ImagePickerField
-          imageUri={localImagePath}
+        <ItemPhotoStrip
+          drafts={photoDrafts}
           houseFolderPath={houseFolderPath}
-          onImageChange={setLocalImagePath}
+          onDraftsChange={setPhotoDrafts}
           onError={setErrorMessage}
+          disabled={isSaving || isDeleting}
         />
 
         <Text style={[screenStyles.label, { color: colors.text }]}>Name *</Text>
@@ -212,6 +266,16 @@ export default function EditItemScreen() {
         <FormTextInput
           value={brand}
           onChangeText={setBrand}
+          style={[
+            screenStyles.input,
+            { color: colors.text, borderColor: colors.border, backgroundColor: colors.headerBackground },
+          ]}
+        />
+
+        <Text style={[screenStyles.label, { color: colors.text }]}>Model</Text>
+        <FormTextInput
+          value={model}
+          onChangeText={setModel}
           style={[
             screenStyles.input,
             { color: colors.text, borderColor: colors.border, backgroundColor: colors.headerBackground },
@@ -238,11 +302,14 @@ export default function EditItemScreen() {
           ]}
         />
 
-        <Text style={[screenStyles.label, { color: colors.text }]}>Purchase year</Text>
+        <Text style={[screenStyles.label, { color: colors.text }]}>Purchase date</Text>
         <FormTextInput
-          value={purchaseYearText}
-          onChangeText={setPurchaseYearText}
-          keyboardType="number-pad"
+          value={purchaseDateText}
+          onChangeText={setPurchaseDateText}
+          placeholder="YYYY-MM-DD"
+          placeholderTextColor={colors.border}
+          autoCapitalize="none"
+          autoCorrect={false}
           style={[
             screenStyles.input,
             { color: colors.text, borderColor: colors.border, backgroundColor: colors.headerBackground },
