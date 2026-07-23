@@ -92,6 +92,58 @@ async function rollbackPartialCopyItem(
 }
 
 /**
+ * Stages a source photo locally: copy file if present, else download from Drive.
+ * Returns the staged local path, or null when neither source is usable.
+ */
+async function stageSourceImageForCopy(options: {
+  localPath: string | null;
+  driveImageUrl: string | null;
+  houseFolderPath: string;
+}): Promise<string | null> {
+  const { localPath, driveImageUrl, houseFolderPath } = options;
+  const stagedFileName = buildStagedItemImageFileName();
+  const stagedLocalPath = `${houseFolderPath}${stagedFileName}`;
+
+  if (localPath !== null && localPath.length > 0) {
+    try {
+      const fileInfo = await FileSystem.getInfoAsync(localPath);
+
+      if (fileInfo.exists) {
+        await FileSystem.copyAsync({
+          from: localPath,
+          to: stagedLocalPath,
+        });
+        return stagedLocalPath;
+      }
+    } catch (error) {
+      console.log('stageSourceImageForCopy local copy skipped:', error);
+    }
+  }
+
+  if (driveImageUrl !== null && driveImageUrl.trim().length > 0) {
+    try {
+      const downloadResult = await FileSystem.downloadAsync(
+        driveImageUrl.trim(),
+        stagedLocalPath,
+      );
+
+      if (downloadResult.status >= 200 && downloadResult.status < 300) {
+        return downloadResult.uri;
+      }
+
+      console.log(
+        'stageSourceImageForCopy Drive download bad status:',
+        downloadResult.status,
+      );
+    } catch (error) {
+      console.log('stageSourceImageForCopy Drive download skipped:', error);
+    }
+  }
+
+  return null;
+}
+
+/**
  * Duplicates one item (same room) with a new local-only copy of its photos.
  * Analogy: photocopy a catalog card + its photo stickers into a fresh set of files.
  */
@@ -135,36 +187,37 @@ export async function copyItem(
 
     await FileSystem.makeDirectoryAsync(houseFolderPath, { intermediates: true });
 
-    // Copy each local photo file into a new path so editing one item does not touch the other.
+    // Copy/download each photo into a new path so the original and copy stay independent.
+    let copiedImageNumber = 0;
+
     for (let imageIndex = 0; imageIndex < sourceImages.length; imageIndex += 1) {
       const sourceImage = sourceImages[imageIndex];
+      const stagedLocalPath = await stageSourceImageForCopy({
+        localPath: sourceImage.localPath,
+        driveImageUrl: sourceImage.driveImageUrl,
+        houseFolderPath,
+      });
 
-      if (sourceImage.localPath === null || sourceImage.localPath.length === 0) {
+      if (stagedLocalPath === null) {
         continue;
       }
 
-      const stagedFileName = buildStagedItemImageFileName();
-      const stagedLocalPath = `${houseFolderPath}${stagedFileName}`;
       stagedLocalPaths.push(stagedLocalPath);
-
-      await FileSystem.copyAsync({
-        from: sourceImage.localPath,
-        to: stagedLocalPath,
-      });
+      copiedImageNumber += 1;
 
       const createdImage = await createItemImage(database, {
         itemId: createdItem.id,
         localPath: stagedLocalPath,
         sortOrder: sourceImage.sortOrder,
         isPrimary: sourceImage.isPrimary,
-        // Fresh copy — must re-upload to Drive later; do not share the source Drive URL.
+        // Fresh local copy — must re-upload to Drive later; do not reuse source Drive URL.
         driveImageUrl: null,
       });
 
       const finalFileName = buildFinalItemImageFileName({
         houseName,
         itemName: copiedItemName,
-        imageNumberOneBased: imageIndex + 1,
+        imageNumberOneBased: copiedImageNumber,
         photoDatabaseId: createdImage.id,
       });
       const finalLocalPath = await renameLocalItemImageFile({

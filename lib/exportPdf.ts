@@ -57,7 +57,8 @@ export type PlannedHousePdfPage = {
 };
 
 /**
- * Counts photos for layout decisions (prefers embedded URIs, else local paths).
+ * Counts photos that PDF export can actually embed (local files / data URIs).
+ * Ignores photoCount alone — that can include Drive-only images with no local file.
  */
 export function getPdfPhotoCount(item: ExportPdfItemBlock): number {
   if (item.imageDataUris.length > 0) {
@@ -66,10 +67,6 @@ export function getPdfPhotoCount(item: ExportPdfItemBlock): number {
 
   if (item.localImagePaths.length > 0) {
     return item.localImagePaths.length;
-  }
-
-  if (item.photoCount > 0) {
-    return item.photoCount;
   }
 
   return item.localImagePath !== null ? 1 : 0;

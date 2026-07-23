@@ -8,6 +8,15 @@ import type { Item, ItemImage } from '@/types/inventory';
 jest.mock('expo-file-system/legacy', () => ({
   makeDirectoryAsync: jest.fn(async () => undefined),
   copyAsync: jest.fn(async () => undefined),
+  getInfoAsync: jest.fn(async () => ({
+    exists: true,
+    isDirectory: false,
+    uri: 'file:///houses/Beach/old.jpg',
+  })),
+  downloadAsync: jest.fn(async (_url: string, destinationUri: string) => ({
+    status: 200,
+    uri: destinationUri,
+  })),
 }));
 
 jest.mock('@/db/items', () => ({
@@ -128,8 +137,21 @@ describe('copyItem', () => {
     jest.mocked(syncItemPrimaryImageColumns).mockReset();
     jest.mocked(FileSystem.copyAsync).mockReset();
     jest.mocked(FileSystem.makeDirectoryAsync).mockReset();
+    jest.mocked(FileSystem.getInfoAsync).mockReset();
+    jest.mocked(FileSystem.downloadAsync).mockReset();
     jest.mocked(deleteLocalImageIfExists).mockReset();
     jest.mocked(getItemsByRoomId).mockResolvedValue([sourceItem]);
+    jest.mocked(FileSystem.getInfoAsync).mockResolvedValue({
+      exists: true,
+      isDirectory: false,
+      uri: 'file:///houses/Beach/old.jpg',
+    } as Awaited<ReturnType<typeof FileSystem.getInfoAsync>>);
+    jest.mocked(FileSystem.downloadAsync).mockImplementation(async (_url, destinationUri) => ({
+      status: 200,
+      uri: destinationUri,
+      headers: {},
+      mimeType: 'image/jpeg',
+    }));
   });
 
   test('creates a new local item with (Copy) name and copied photo rows', async () => {
@@ -217,19 +239,63 @@ describe('copyItem', () => {
     );
   });
 
-  test('rolls back the new item when photo copy fails', async () => {
+  test('downloads Drive photos when localPath is missing', async () => {
+    jest
+      .mocked(getItemById)
+      .mockResolvedValueOnce(sourceItem)
+      .mockResolvedValueOnce(createdItem);
+    jest.mocked(createItem).mockResolvedValue(createdItem);
+    jest.mocked(getImagesByItemId).mockResolvedValue([
+      {
+        id: 11,
+        itemId: 7,
+        localPath: null,
+        sortOrder: 0,
+        isPrimary: true,
+        driveImageUrl: 'https://drive.google.com/uc?id=abc',
+      },
+    ]);
+    jest.mocked(createItemImage).mockResolvedValue({
+      id: 99,
+      itemId: 42,
+      localPath: 'file:///houses/Beach/staged-copy.jpg',
+      sortOrder: 0,
+      isPrimary: true,
+      driveImageUrl: null,
+    });
+
+    await copyItem(fakeDatabase, 7, 'file:///houses/Beach/', 'Beach House');
+
+    expect(FileSystem.downloadAsync).toHaveBeenCalledWith(
+      'https://drive.google.com/uc?id=abc',
+      'file:///houses/Beach/staged-copy.jpg',
+    );
+    expect(FileSystem.copyAsync).not.toHaveBeenCalled();
+    expect(createItemImage).toHaveBeenCalled();
+  });
+
+  test('rolls back the new item when photo persistence fails', async () => {
     jest.mocked(getItemById).mockResolvedValue(sourceItem);
     jest.mocked(createItem).mockResolvedValue(createdItem);
-    // First call loads source photos; rollback loads the new item's (empty) photos.
+    // First call loads source photos; rollback loads the new item's photos then deletes.
     jest
       .mocked(getImagesByItemId)
       .mockResolvedValueOnce(sourceImages)
-      .mockResolvedValueOnce([]);
-    jest.mocked(FileSystem.copyAsync).mockRejectedValue(new Error('disk full'));
+      .mockResolvedValueOnce([
+        {
+          id: 99,
+          itemId: 42,
+          localPath: 'file:///houses/Beach/staged-copy.jpg',
+          sortOrder: 0,
+          isPrimary: true,
+          driveImageUrl: null,
+        },
+      ]);
+    jest.mocked(createItemImage).mockRejectedValue(new Error('db full'));
 
     await expect(
       copyItem(fakeDatabase, 7, 'file:///houses/Beach/', 'Beach House'),
-    ).rejects.toThrow(/disk full/i);
+    ).rejects.toThrow(/db full/i);
 
     expect(deleteItem).toHaveBeenCalledWith(fakeDatabase, 42);
     expect(deleteLocalImageIfExists).toHaveBeenCalledWith(

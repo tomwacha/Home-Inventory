@@ -136,7 +136,7 @@ export default function ItemDetailScreen() {
       );
 
       router.replace(
-        `/house/${houseId}/room/${roomId}/item/${copiedItem.id}/edit`,
+        `/house/${houseId}/room/${copiedItem.roomId}/item/${copiedItem.id}/edit`,
       );
     } catch (error) {
       console.log('ItemDetailScreen copy error:', error);
@@ -272,7 +272,7 @@ export default function ItemDetailScreen() {
         ]}
         disabled={isCopying}
         onPress={() =>
-          router.push(`/house/${houseId}/room/${roomId}/item/${itemId}/edit`)
+          router.push(`/house/${houseId}/room/${item.roomId}/item/${itemId}/edit`)
         }>
         <Text style={screenStyles.primaryButtonText}>Edit Item</Text>
       </Pressable>
@@ -301,7 +301,7 @@ export default function ItemDetailScreen() {
           { borderColor: colors.border, opacity: isCopying ? 0.7 : 1 },
         ]}
         disabled={isCopying}
-        onPress={() => router.push(`/house/${houseId}/room/${roomId}/add-item`)}>
+        onPress={() => router.push(`/house/${houseId}/room/${item.roomId}/add-item`)}>
         <Text style={[screenStyles.secondaryButtonText, { color: colors.text }]}>
           Add Another Item
         </Text>
@@ -313,7 +313,7 @@ export default function ItemDetailScreen() {
           { borderColor: colors.border, opacity: isCopying ? 0.7 : 1 },
         ]}
         disabled={isCopying}
-        onPress={() => router.push(`/house/${houseId}/room/${roomId}`)}>
+        onPress={() => router.push(`/house/${houseId}/room/${item.roomId}`)}>
         <Text style={[screenStyles.secondaryButtonText, { color: colors.text }]}>
           Back to Room
         </Text>

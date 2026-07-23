@@ -54,6 +54,8 @@ export default function EditItemScreen() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [selectedRoomId, setSelectedRoomId] = useState(roomId);
+  // SQLite room_id currently on the item (ignore unsaved picker changes on Delete).
+  const [savedRoomId, setSavedRoomId] = useState(roomId);
   const [houseName, setHouseName] = useState('');
   const [houseFolderPath, setHouseFolderPath] = useState('');
   const [itemName, setItemName] = useState('');
@@ -98,6 +100,7 @@ export default function EditItemScreen() {
           }
 
           setSelectedRoomId(loadedItem.roomId);
+          setSavedRoomId(loadedItem.roomId);
           setItemName(loadedItem.name);
           setBrand(loadedItem.brand ?? '');
           setModel(loadedItem.model ?? '');
@@ -236,7 +239,7 @@ export default function EditItemScreen() {
             }
 
             await deleteItem(database, itemId);
-            router.replace(`/house/${houseId}/room/${selectedRoomId}`);
+            router.replace(`/house/${houseId}/room/${savedRoomId}`);
           } catch (error) {
             console.log('EditItemScreen delete error:', error);
             setErrorMessage('Could not delete item.');

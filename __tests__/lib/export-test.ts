@@ -420,6 +420,19 @@ describe('getPdfPhotoCount and planning without Base64', () => {
     expect(getPdfPhotoCount(item)).toBe(2);
     expect(planRoomPages([item])[0].kind).toBe('multiPhoto');
   });
+
+  test('ignores photoCount when there are no local paths (avoids empty multi-photo pages)', () => {
+    const item = buildPdfItem({
+      itemName: 'Drive only',
+      imageDataUris: [],
+      localImagePaths: [],
+      localImagePath: null,
+      photoCount: 3,
+    });
+
+    expect(getPdfPhotoCount(item)).toBe(0);
+    expect(planRoomPages([item])[0].kind).toBe('grid');
+  });
 });
 
 describe('planHousePdfDocument and chunkPlannedPdfPages', () => {

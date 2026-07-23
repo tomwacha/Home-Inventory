@@ -592,6 +592,20 @@ function uploadItems(items, duplicateMode, driveFolderId) {
         status: 'created',
       });
     }
+
+    // Register this write so a later item in the same upload cannot collide on name.
+    var writtenRow = {
+      sheetRowNumber: matched ? matched.sheetRowNumber : sheet.getLastRow(),
+      sheetRowId: sheetRowId,
+      houseName: String(item.houseName || ''),
+      roomName: String(item.roomName || ''),
+      name: String(item.name || ''),
+      driveImageUrl: uploadImageResult.driveImageUrl || null,
+      itemImagesJson: uploadImageResult.imagesJson || '[]',
+    };
+    bySheetRowId[sheetRowId] = writtenRow;
+    byMatchKey[buildMatchKey(writtenRow.houseName, writtenRow.roomName, writtenRow.name)] =
+      writtenRow;
   }
 
   return {
