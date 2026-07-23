@@ -8,6 +8,7 @@ import ItemPhotoStrip from '@/components/ItemPhotoStrip';
 import KeyboardAwareFormScroll, {
   FormTextInput,
 } from '@/components/KeyboardAwareFormScroll';
+import RoomDropdown from '@/components/RoomDropdown';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 import { screenStyles } from '@/constants/screenStyles';
@@ -15,6 +16,7 @@ import { getAllCategories } from '@/db/categories';
 import { getHouseById } from '@/db/houses';
 import { getImagesByItemId } from '@/db/itemImages';
 import { deleteItem, getItemById, updateItem } from '@/db/items';
+import { getRoomsByHouseId } from '@/db/rooms';
 import { confirmDestructiveAction } from '@/lib/confirmDestructiveAction';
 import {
   isValidOptionalYyyyMmDd,
@@ -25,10 +27,10 @@ import {
   persistDraftItemPhotos,
   type DraftItemPhoto,
 } from '@/lib/persistItemPhotos';
-import type { Category } from '@/types/inventory';
+import type { Category, Room } from '@/types/inventory';
 
 /**
- * Edit Item form (Feature 6) with multi-photo replace/remove.
+ * Edit Item form (Feature 6) with multi-photo replace/remove and room switch.
  */
 export default function EditItemScreen() {
   const {
@@ -50,6 +52,8 @@ export default function EditItemScreen() {
   const router = useRouter();
 
   const [categories, setCategories] = useState<Category[]>([]);
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [selectedRoomId, setSelectedRoomId] = useState(roomId);
   const [houseName, setHouseName] = useState('');
   const [houseFolderPath, setHouseFolderPath] = useState('');
   const [itemName, setItemName] = useState('');
@@ -75,6 +79,7 @@ export default function EditItemScreen() {
         try {
           const loadedItem = await getItemById(database, itemId);
           const loadedCategories = await getAllCategories(database);
+          const loadedRooms = await getRoomsByHouseId(database, houseId);
           const loadedHouse = await getHouseById(database, houseId);
           const loadedImages = await getImagesByItemId(database, itemId);
 
@@ -83,6 +88,7 @@ export default function EditItemScreen() {
           }
 
           setCategories(loadedCategories);
+          setRooms(loadedRooms);
           setHouseName(loadedHouse?.name ?? '');
           setHouseFolderPath(loadedHouse?.folderPath ?? '');
 
@@ -91,6 +97,7 @@ export default function EditItemScreen() {
             return;
           }
 
+          setSelectedRoomId(loadedItem.roomId);
           setItemName(loadedItem.name);
           setBrand(loadedItem.brand ?? '');
           setModel(loadedItem.model ?? '');
@@ -165,6 +172,12 @@ export default function EditItemScreen() {
       return;
     }
 
+    // Room is required — refuse save if the picker somehow has no valid id.
+    if (Number.isNaN(selectedRoomId) || selectedRoomId <= 0) {
+      setErrorMessage('Please select a room.');
+      return;
+    }
+
     const purchaseDate = normalizeOptionalYyyyMmDd(purchaseDateText);
     const primaryDraft =
       photoDrafts.find((draft) => draft.isPrimary) ?? photoDrafts[0] ?? null;
@@ -174,6 +187,7 @@ export default function EditItemScreen() {
 
     try {
       await updateItem(database, itemId, {
+        roomId: selectedRoomId,
         name: trimmedItemName,
         brand: brand.trim().length > 0 ? brand.trim() : null,
         model: model.trim().length > 0 ? model.trim() : null,
@@ -193,7 +207,8 @@ export default function EditItemScreen() {
         drafts: photoDrafts,
       });
 
-      router.replace(`/house/${houseId}/room/${roomId}/item/${itemId}`);
+      // Always land on detail under the saved room so URLs match SQLite after a switch.
+      router.replace(`/house/${houseId}/room/${selectedRoomId}/item/${itemId}`);
     } catch (error) {
       console.log('EditItemScreen save error:', error);
       setErrorMessage('Could not save changes.');
@@ -221,7 +236,7 @@ export default function EditItemScreen() {
             }
 
             await deleteItem(database, itemId);
-            router.replace(`/house/${houseId}/room/${roomId}`);
+            router.replace(`/house/${houseId}/room/${selectedRoomId}`);
           } catch (error) {
             console.log('EditItemScreen delete error:', error);
             setErrorMessage('Could not delete item.');
@@ -260,6 +275,14 @@ export default function EditItemScreen() {
             screenStyles.input,
             { color: colors.text, borderColor: colors.border, backgroundColor: colors.headerBackground },
           ]}
+        />
+
+        <Text style={[screenStyles.label, { color: colors.text }]}>Room *</Text>
+        <RoomDropdown
+          rooms={rooms}
+          selectedRoomId={selectedRoomId}
+          onSelectRoomId={setSelectedRoomId}
+          disabled={isSaving || isDeleting}
         />
 
         <Text style={[screenStyles.label, { color: colors.text }]}>Brand</Text>

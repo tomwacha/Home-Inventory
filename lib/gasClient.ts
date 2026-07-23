@@ -124,6 +124,21 @@ async function parseGasJsonResponse<TResponse extends { ok: true }>(
   try {
     parsedBody = JSON.parse(responseText);
   } catch {
+    const trimmedText = responseText.trim();
+    const looksLikeHtml =
+      trimmedText.startsWith('<') ||
+      /<!DOCTYPE/i.test(trimmedText) ||
+      /<html/i.test(trimmedText);
+    const isEmpty = trimmedText.length === 0;
+    // Huge non-JSON often means a truncated timeout / proxy error page.
+    const isHuge = responseText.length > 5000;
+
+    if (isEmpty || looksLikeHtml || isHuge) {
+      throw new Error(
+        'Google Apps Script returned a non-JSON response (often a timeout or upload that is too large). Try again on Wi‑Fi, or sync after fewer new photos.',
+      );
+    }
+
     throw new Error(
       'The Google Apps Script URL did not return JSON. Check Settings: use the /exec Web App URL, and redeploy if you changed the script.',
     );

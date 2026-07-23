@@ -109,4 +109,55 @@ describe('buildGasUploadItems', () => {
     expect(uploadItems[0].images[0].imageBase64).toBeNull();
     expect(FileSystem.readAsStringAsync).not.toHaveBeenCalled();
   });
+
+  test('skips Base64 when driveImageUrl already exists (keeps URL only)', async () => {
+    const rowAlreadyOnDrive: SyncInventoryRow = {
+      ...sampleSyncRow,
+      images: [
+        {
+          id: 11,
+          itemId: 7,
+          localPath: 'file:///photo.jpg',
+          sortOrder: 0,
+          isPrimary: true,
+          driveImageUrl: 'https://drive.google.com/uc?id=abc',
+        },
+        {
+          id: 12,
+          itemId: 7,
+          localPath: 'file:///photo-2.jpg',
+          sortOrder: 1,
+          isPrimary: false,
+          driveImageUrl: null,
+        },
+      ],
+    };
+
+    jest.mocked(FileSystem.getInfoAsync).mockResolvedValue({
+      exists: true,
+      uri: 'file:///photo-2.jpg',
+      isDirectory: false,
+    } as Awaited<ReturnType<typeof FileSystem.getInfoAsync>>);
+    jest.mocked(FileSystem.readAsStringAsync).mockResolvedValue('c2Vjb25k');
+
+    const uploadItems = await buildGasUploadItems('Beach House', [rowAlreadyOnDrive]);
+
+    // Primary is already on Drive — no Base64, URL preserved.
+    expect(uploadItems[0].images[0]).toMatchObject({
+      imageId: 11,
+      imageBase64: null,
+      driveImageUrl: 'https://drive.google.com/uc?id=abc',
+    });
+    // Second photo still needs upload bytes.
+    expect(uploadItems[0].images[1]).toMatchObject({
+      imageId: 12,
+      imageBase64: 'c2Vjb25k',
+      driveImageUrl: null,
+    });
+    // Singular field follows primary (null when primary skipped Base64).
+    expect(uploadItems[0].imageBase64).toBeNull();
+    // Only the photo without a Drive URL should hit the filesystem.
+    expect(FileSystem.getInfoAsync).toHaveBeenCalledTimes(1);
+    expect(FileSystem.getInfoAsync).toHaveBeenCalledWith('file:///photo-2.jpg');
+  });
 });

@@ -152,11 +152,53 @@ describe('pingGas', () => {
       Promise.resolve({
         ok: true,
         status: 200,
-        text: async () => '<html>login</html>',
+        text: async () => 'not-json-at-all',
       } as Response),
     );
 
     await expect(pingGas('https://example.test/exec')).rejects.toThrow(/did not return JSON/i);
+  });
+
+  test('throws a timeout/size hint when response looks like HTML', async () => {
+    global.fetch = jest.fn(async () =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        text: async () => '<html>login</html>',
+      } as Response),
+    );
+
+    await expect(pingGas('https://example.test/exec')).rejects.toThrow(
+      /timeout or upload that is too large/i,
+    );
+  });
+
+  test('throws a timeout/size hint when response body is empty', async () => {
+    global.fetch = jest.fn(async () =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        text: async () => '   ',
+      } as Response),
+    );
+
+    await expect(pingGas('https://example.test/exec')).rejects.toThrow(
+      /timeout or upload that is too large/i,
+    );
+  });
+
+  test('throws a timeout/size hint when non-JSON body is huge', async () => {
+    global.fetch = jest.fn(async () =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        text: async () => 'x'.repeat(5001),
+      } as Response),
+    );
+
+    await expect(pingGas('https://example.test/exec')).rejects.toThrow(
+      /timeout or upload that is too large/i,
+    );
   });
 
   test('throws gateway error message when ok is false', async () => {
