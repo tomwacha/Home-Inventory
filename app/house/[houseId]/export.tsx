@@ -15,10 +15,14 @@ import {
   uploadInventory,
 } from '@/lib/gasClient';
 import {
+  chunkGasUploadItems,
+  toDuplicateCheckItems,
+} from '@/lib/gasUploadPayload';
+import {
   createAndShareInventoryExport,
   type InventoryExportFormat,
 } from '@/lib/shareInventoryExport';
-import type { GasDuplicateMode, GasUploadItem } from '@/types/gasSync';
+import type { GasDuplicateMode, GasUploadItem, GasUploadResultItem } from '@/types/gasSync';
 
 type ExportDestination = InventoryExportFormat | 'sheets';
 
@@ -41,7 +45,7 @@ export default function ExportScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   /**
-   * Runs the Google Sheets upload after the user picks skip or override.
+   * Uploads items in small batches; marks each batch synced as soon as it succeeds.
    */
   async function runSheetsUpload(
     webAppUrl: string,
@@ -49,28 +53,47 @@ export default function ExportScreen() {
     uploadItems: GasUploadItem[],
     duplicateMode: GasDuplicateMode,
   ) {
-    setStatusMessage(
-      duplicateMode === 'skip'
-        ? 'Uploading (skipping duplicates)…'
-        : 'Uploading (overriding duplicates)…',
-    );
+    const batches = chunkGasUploadItems(uploadItems);
+    const allResults: GasUploadResultItem[] = [];
+    const modeLabel =
+      duplicateMode === 'skip' ? 'skipping duplicates' : 'overriding duplicates';
 
-    const uploadResponse = await uploadInventory(
-      webAppUrl,
-      uploadItems,
-      duplicateMode,
-      driveFolderId,
-    );
+    // One POST per batch — mark each successful batch synced immediately so a
+    // later failure does not leave Sheet writes without matching local state.
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
+      const batchNumber = batchIndex + 1;
+      setStatusMessage(
+        `Uploading batch ${batchNumber} of ${batches.length} (${modeLabel})…`,
+      );
 
-    await markItemsSyncedFromUploadResults(database, uploadResponse.results);
+      try {
+        const uploadResponse = await uploadInventory(
+          webAppUrl,
+          batches[batchIndex],
+          duplicateMode,
+          driveFolderId,
+        );
+        allResults.push(...uploadResponse.results);
+        await markItemsSyncedFromUploadResults(database, uploadResponse.results);
+      } catch (error) {
+        const completedBatchCount = batchIndex;
+        const failureMessage =
+          error instanceof Error
+            ? error.message
+            : 'Could not upload to Google Sheets.';
+        throw new Error(
+          `Upload stopped after ${completedBatchCount} of ${batches.length} batches. ${failureMessage}`,
+        );
+      }
+    }
 
-    const createdCount = uploadResponse.results.filter(
+    const createdCount = allResults.filter(
       (result) => result.status === 'created',
     ).length;
-    const updatedCount = uploadResponse.results.filter(
+    const updatedCount = allResults.filter(
       (result) => result.status === 'updated',
     ).length;
-    const skippedCount = uploadResponse.results.filter(
+    const skippedCount = allResults.filter(
       (result) => result.status === 'skipped',
     ).length;
 
@@ -80,7 +103,7 @@ export default function ExportScreen() {
   }
 
   /**
-   * Builds payload, checks duplicates, then uploads (with Alert when needed).
+   * Builds payload, checks duplicates (text-only), then uploads (with Alert when needed).
    */
   async function handleSheetsExport() {
     const house = await getHouseById(database, houseId);
@@ -102,9 +125,10 @@ export default function ExportScreen() {
     const uploadItems = await buildGasUploadItems(house.name, syncRows);
 
     setStatusMessage('Checking for duplicates in Google Sheets…');
+    // Duplicate check only needs names/ids — strip Base64 so the POST stays small.
     const duplicateResponse = await checkDuplicates(
       connection.webAppUrl,
-      uploadItems,
+      toDuplicateCheckItems(uploadItems),
     );
 
     // No clashes — upload everything as an override-safe create/update pass.
@@ -247,6 +271,7 @@ export default function ExportScreen() {
         format: selectedDestination,
         houseName: house.name,
         rows: exportRows,
+        onProgress: setStatusMessage,
       });
 
       setStatusMessage('Share sheet opened. Pick an app to save or send the file.');

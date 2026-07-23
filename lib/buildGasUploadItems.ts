@@ -32,8 +32,9 @@ async function readLocalImageAsBase64(
 }
 
 /**
- * Turns sync rows into GAS upload items (every photo Base64 when local).
- * Analogy: packing each inventory card — and every photo sticky — into an envelope.
+ * Turns sync rows into GAS upload items.
+ * Only packs Base64 for photos that are not already on Drive (keeps payloads small).
+ * Analogy: packing each inventory card into an envelope — skip re-mailing photos Google already has.
  */
 export async function buildGasUploadItems(
   houseName: string,
@@ -46,7 +47,12 @@ export async function buildGasUploadItems(
 
     for (let imageIndex = 0; imageIndex < syncRow.images.length; imageIndex += 1) {
       const itemImage = syncRow.images[imageIndex];
-      const imageBase64 = await readLocalImageAsBase64(itemImage.localPath);
+      // Already on Drive? Send the URL only — no need to re-upload the file bytes.
+      const alreadyOnDrive =
+        itemImage.driveImageUrl !== null && itemImage.driveImageUrl.length > 0;
+      const imageBase64 = alreadyOnDrive
+        ? null
+        : await readLocalImageAsBase64(itemImage.localPath);
 
       images.push({
         imageId: itemImage.id,

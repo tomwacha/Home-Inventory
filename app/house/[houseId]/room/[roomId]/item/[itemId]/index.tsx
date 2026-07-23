@@ -14,8 +14,10 @@ import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 import { screenStyles } from '@/constants/screenStyles';
 import { getCategoryById } from '@/db/categories';
+import { getHouseById } from '@/db/houses';
 import { getImagesByItemId } from '@/db/itemImages';
 import { getItemById } from '@/db/items';
+import { copyItem } from '@/lib/copyItem';
 import type { Item, ItemImage } from '@/types/inventory';
 
 /**
@@ -45,7 +47,11 @@ export default function ItemDetailScreen() {
   const [itemImages, setItemImages] = useState<ItemImage[]>([]);
   const [selectedImagePath, setSelectedImagePath] = useState<string | null>(null);
   const [categoryName, setCategoryName] = useState<string | null>(null);
+  const [houseName, setHouseName] = useState('');
+  const [houseFolderPath, setHouseFolderPath] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [isCopying, setIsCopying] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -57,6 +63,7 @@ export default function ItemDetailScreen() {
         try {
           const loadedItem = await getItemById(database, itemId);
           const loadedImages = await getImagesByItemId(database, itemId);
+          const loadedHouse = await getHouseById(database, houseId);
           let loadedCategoryName: string | null = null;
 
           if (loadedItem?.categoryId !== null && loadedItem?.categoryId !== undefined) {
@@ -67,6 +74,8 @@ export default function ItemDetailScreen() {
           if (isStillFocused) {
             setItem(loadedItem);
             setItemImages(loadedImages);
+            setHouseName(loadedHouse?.name ?? '');
+            setHouseFolderPath(loadedHouse?.folderPath ?? '');
             const primaryImage =
               loadedImages.find((image) => image.isPrimary) ?? loadedImages[0] ?? null;
             setSelectedImagePath(
@@ -88,7 +97,7 @@ export default function ItemDetailScreen() {
       return () => {
         isStillFocused = false;
       };
-    }, [database, itemId]),
+    }, [database, houseId, itemId]),
   );
 
   /**
@@ -104,6 +113,36 @@ export default function ItemDetailScreen() {
     }
 
     return 'Local only (not uploaded yet)';
+  }
+
+  /**
+   * Duplicates this item into the same room, then opens the copy on Edit.
+   */
+  async function handleCopyItem() {
+    if (houseFolderPath.trim().length === 0) {
+      setErrorMessage('House folder is missing. Open the house and try again.');
+      return;
+    }
+
+    setIsCopying(true);
+    setErrorMessage(null);
+
+    try {
+      const copiedItem = await copyItem(
+        database,
+        itemId,
+        houseFolderPath,
+        houseName,
+      );
+
+      router.replace(
+        `/house/${houseId}/room/${copiedItem.roomId}/item/${copiedItem.id}/edit`,
+      );
+    } catch (error) {
+      console.log('ItemDetailScreen copy error:', error);
+      setErrorMessage('Could not copy the item.');
+      setIsCopying(false);
+    }
   }
 
   if (isLoading) {
@@ -132,7 +171,7 @@ export default function ItemDetailScreen() {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
-      contentContainerStyle={screenStyles.container}>
+      contentContainerStyle={screenStyles.scrollContent}>
       {selectedImagePath !== null ? (
         <Image
           source={{ uri: selectedImagePath }}
@@ -222,25 +261,59 @@ export default function ItemDetailScreen() {
         Sync: {getSyncStatusLabel(item.syncStatus)}
       </Text>
 
+      {errorMessage !== null ? (
+        <Text style={screenStyles.errorText}>{errorMessage}</Text>
+      ) : null}
+
       <Pressable
-        style={[screenStyles.primaryButton, { backgroundColor: colors.tint }]}
+        style={[
+          screenStyles.primaryButton,
+          { backgroundColor: colors.tint, opacity: isCopying ? 0.7 : 1 },
+        ]}
+        disabled={isCopying}
         onPress={() =>
-          router.push(`/house/${houseId}/room/${roomId}/item/${itemId}/edit`)
+          router.push(`/house/${houseId}/room/${item.roomId}/item/${itemId}/edit`)
         }>
         <Text style={screenStyles.primaryButtonText}>Edit Item</Text>
       </Pressable>
 
       <Pressable
-        style={[screenStyles.secondaryButton, { borderColor: colors.border }]}
-        onPress={() => router.push(`/house/${houseId}/room/${roomId}/add-item`)}>
+        style={[
+          screenStyles.secondaryButton,
+          { borderColor: colors.border, opacity: isCopying ? 0.7 : 1 },
+        ]}
+        disabled={isCopying}
+        onPress={() => {
+          void handleCopyItem();
+        }}>
+        {isCopying ? (
+          <ActivityIndicator color={colors.text} />
+        ) : (
+          <Text style={[screenStyles.secondaryButtonText, { color: colors.text }]}>
+            Copy Item
+          </Text>
+        )}
+      </Pressable>
+
+      <Pressable
+        style={[
+          screenStyles.secondaryButton,
+          { borderColor: colors.border, opacity: isCopying ? 0.7 : 1 },
+        ]}
+        disabled={isCopying}
+        onPress={() => router.push(`/house/${houseId}/room/${item.roomId}/add-item`)}>
         <Text style={[screenStyles.secondaryButtonText, { color: colors.text }]}>
           Add Another Item
         </Text>
       </Pressable>
 
       <Pressable
-        style={[screenStyles.secondaryButton, { borderColor: colors.border }]}
-        onPress={() => router.push(`/house/${houseId}/room/${roomId}`)}>
+        style={[
+          screenStyles.secondaryButton,
+          { borderColor: colors.border, opacity: isCopying ? 0.7 : 1 },
+        ]}
+        disabled={isCopying}
+        onPress={() => router.push(`/house/${houseId}/room/${item.roomId}`)}>
         <Text style={[screenStyles.secondaryButtonText, { color: colors.text }]}>
           Back to Room
         </Text>

@@ -163,6 +163,7 @@ export async function updateItem(
   database: SQLiteDatabase,
   itemId: number,
   updates: {
+    roomId: number;
     name: string;
     brand: string | null;
     model: string | null;
@@ -177,6 +178,7 @@ export async function updateItem(
 
   await database.runAsync(
     `UPDATE items SET
+      room_id = ?,
       name = ?,
       brand = ?,
       model = ?,
@@ -188,6 +190,7 @@ export async function updateItem(
       updated_at = ?,
       sync_status = 'local'
      WHERE id = ?`,
+    updates.roomId,
     updates.name.trim(),
     updates.brand,
     updates.model,

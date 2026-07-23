@@ -43,7 +43,8 @@ Cloud gateway deploy guide: [gas/README.md](gas/README.md).
 ### Cloud sync (optional)
 - Settings → **Cloud Sync Settings** for Web App URL and Drive folder id (separate from photo defaults)
 - Settings footer shows the app version from `app.json`
-- Export → Google Sheets: upload rows + **every item photo**; duplicate skip/override prompt
+- Export → Google Sheets: upload rows + photos; duplicate skip/override prompt
+- Large houses upload in **batches of 5 items** per request; photos that already have a Drive URL are **not re-uploaded** (Base64 is omitted), which keeps payloads smaller and reduces Apps Script timeouts
 - Import → merge Sheet rows for the current house into SQLite (restores all photo URLs when present; does not wipe phone-only items)
 - Sync status shown on item detail (`Local only` / `Synced`)
 

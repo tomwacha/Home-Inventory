@@ -1,14 +1,19 @@
 import { buildInventoryCsv, escapeCsvField } from '@/lib/exportCsv';
 import {
   buildHousePdfMetaLine,
+  buildInventoryPdfChunkHtml,
   buildInventoryPdfHtml,
   chunkItemsForPdfPages,
+  chunkPlannedPdfPages,
   escapeHtml,
+  getPdfPhotoCount,
   groupItemsByRoom,
+  planHousePdfDocument,
   planRoomPages,
   PDF_GRID_ITEMS_PER_PAGE,
   PDF_LANDSCAPE_LETTER_HEIGHT,
   PDF_LANDSCAPE_LETTER_WIDTH,
+  PDF_PRINT_CHUNK_MAX_PAGES,
   sumHousePurchaseValueUsd,
 } from '@/lib/exportPdf';
 import type { ExportInventoryRow } from '@/types/inventory';
@@ -400,5 +405,88 @@ describe('buildInventoryPdfHtml', () => {
     expect(htmlDocument).toContain('<span>Empty House</span>');
     expect(htmlDocument).toContain('<span>Page 1 of 1</span>');
     expect(htmlDocument.match(/data-pdf-page-footer="true"/g)).toHaveLength(1);
+  });
+});
+
+describe('getPdfPhotoCount and planning without Base64', () => {
+  test('treats localImagePaths as multi-photo when imageDataUris are empty', () => {
+    const item = buildPdfItem({
+      itemName: 'Camera',
+      imageDataUris: [],
+      localImagePaths: ['file:///a.jpg', 'file:///b.jpg'],
+      photoCount: 2,
+    });
+
+    expect(getPdfPhotoCount(item)).toBe(2);
+    expect(planRoomPages([item])[0].kind).toBe('multiPhoto');
+  });
+
+  test('ignores photoCount when there are no local paths (avoids empty multi-photo pages)', () => {
+    const item = buildPdfItem({
+      itemName: 'Drive only',
+      imageDataUris: [],
+      localImagePaths: [],
+      localImagePath: null,
+      photoCount: 3,
+    });
+
+    expect(getPdfPhotoCount(item)).toBe(0);
+    expect(planRoomPages([item])[0].kind).toBe('grid');
+  });
+});
+
+describe('planHousePdfDocument and chunkPlannedPdfPages', () => {
+  test('uses default chunk size of 8', () => {
+    expect(PDF_PRINT_CHUNK_MAX_PAGES).toBe(8);
+  });
+
+  test('splits 17 planned pages into chunks of 8, 8, and 1', () => {
+    // 17 single-item rooms → 17 grid pages (one item each).
+    const items = Array.from({ length: 17 }, (_, index) =>
+      buildPdfItem({
+        itemName: `Item ${index + 1}`,
+        roomName: `Room ${index + 1}`,
+        imageDataUris: [],
+      }),
+    );
+
+    const plannedPages = planHousePdfDocument(items);
+    expect(plannedPages).toHaveLength(17);
+    expect(plannedPages[0].pageNumber).toBe(1);
+    expect(plannedPages[16].pageNumber).toBe(17);
+
+    const chunks = chunkPlannedPdfPages(plannedPages);
+    expect(chunks.map((chunk) => chunk.length)).toEqual([8, 8, 1]);
+    expect(chunks[0][0].pageNumber).toBe(1);
+    expect(chunks[1][0].pageNumber).toBe(9);
+    expect(chunks[2][0].pageNumber).toBe(17);
+  });
+});
+
+describe('buildInventoryPdfChunkHtml', () => {
+  test('keeps global page numbers and omits house header on a mid-document chunk', () => {
+    const items = Array.from({ length: 10 }, (_, index) =>
+      buildPdfItem({
+        itemName: `Item ${index + 1}`,
+        roomName: `Room ${index + 1}`,
+        imageDataUris: [],
+        purchasePriceUsd: 1,
+      }),
+    );
+    const plannedPages = planHousePdfDocument(items);
+    const secondChunk = chunkPlannedPdfPages(plannedPages, 8)[1];
+
+    const htmlDocument = buildInventoryPdfChunkHtml({
+      houseName: 'Beach House',
+      generatedAtLabel: '7/20/2026, 9:00:00 AM',
+      allItemsForMeta: items,
+      plannedPagesChunk: secondChunk,
+      totalPageCount: plannedPages.length,
+    });
+
+    expect(htmlDocument).not.toContain('Beach House — Home Inventory');
+    expect(htmlDocument).toContain('<span>Page 9 of 10</span>');
+    expect(htmlDocument).toContain('<span>Page 10 of 10</span>');
+    expect(htmlDocument).not.toContain('<span>Page 1 of 10</span>');
   });
 });
