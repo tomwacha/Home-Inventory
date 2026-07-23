@@ -45,7 +45,7 @@ export default function ExportScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   /**
-   * Uploads items in small batches, then marks everything synced locally.
+   * Uploads items in small batches; marks each batch synced as soon as it succeeds.
    */
   async function runSheetsUpload(
     webAppUrl: string,
@@ -58,7 +58,8 @@ export default function ExportScreen() {
     const modeLabel =
       duplicateMode === 'skip' ? 'skipping duplicates' : 'overriding duplicates';
 
-    // One POST per batch — if a batch fails, stop and report how far we got.
+    // One POST per batch — mark each successful batch synced immediately so a
+    // later failure does not leave Sheet writes without matching local state.
     for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
       const batchNumber = batchIndex + 1;
       setStatusMessage(
@@ -73,6 +74,7 @@ export default function ExportScreen() {
           driveFolderId,
         );
         allResults.push(...uploadResponse.results);
+        await markItemsSyncedFromUploadResults(database, uploadResponse.results);
       } catch (error) {
         const completedBatchCount = batchIndex;
         const failureMessage =
@@ -84,8 +86,6 @@ export default function ExportScreen() {
         );
       }
     }
-
-    await markItemsSyncedFromUploadResults(database, allResults);
 
     const createdCount = allResults.filter(
       (result) => result.status === 'created',

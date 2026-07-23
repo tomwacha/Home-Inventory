@@ -1,4 +1,8 @@
-import { copyItem } from '@/lib/copyItem';
+import {
+  buildUniqueCopyItemName,
+  copyItem,
+  getCopyItemBaseName,
+} from '@/lib/copyItem';
 import type { Item, ItemImage } from '@/types/inventory';
 
 jest.mock('expo-file-system/legacy', () => ({
@@ -9,6 +13,8 @@ jest.mock('expo-file-system/legacy', () => ({
 jest.mock('@/db/items', () => ({
   getItemById: jest.fn(),
   createItem: jest.fn(),
+  getItemsByRoomId: jest.fn(),
+  deleteItem: jest.fn(),
 }));
 
 jest.mock('@/db/itemImages', () => ({
@@ -16,6 +22,10 @@ jest.mock('@/db/itemImages', () => ({
   createItemImage: jest.fn(),
   updateItemImagePaths: jest.fn(),
   syncItemPrimaryImageColumns: jest.fn(),
+}));
+
+jest.mock('@/lib/images', () => ({
+  deleteLocalImageIfExists: jest.fn(async () => undefined),
 }));
 
 jest.mock('@/lib/itemImageFiles', () => ({
@@ -35,7 +45,13 @@ import {
   syncItemPrimaryImageColumns,
   updateItemImagePaths,
 } from '@/db/itemImages';
-import { createItem, getItemById } from '@/db/items';
+import {
+  createItem,
+  deleteItem,
+  getItemById,
+  getItemsByRoomId,
+} from '@/db/items';
+import { deleteLocalImageIfExists } from '@/lib/images';
 import * as FileSystem from 'expo-file-system/legacy';
 
 const fakeDatabase = {} as never;
@@ -78,16 +94,42 @@ const sourceImages: ItemImage[] = [
   },
 ];
 
+describe('getCopyItemBaseName / buildUniqueCopyItemName', () => {
+  test('strips an existing Copy suffix before numbering', () => {
+    expect(getCopyItemBaseName('Blender (Copy)')).toBe('Blender');
+    expect(getCopyItemBaseName('Blender (Copy 3)')).toBe('Blender');
+    expect(getCopyItemBaseName('Blender')).toBe('Blender');
+  });
+
+  test('uses (Copy) then (Copy 2) when names are taken', () => {
+    expect(buildUniqueCopyItemName('Blender', ['Blender'])).toBe('Blender (Copy)');
+    expect(
+      buildUniqueCopyItemName('Blender', ['Blender', 'Blender (Copy)']),
+    ).toBe('Blender (Copy 2)');
+    expect(
+      buildUniqueCopyItemName('Blender (Copy)', [
+        'Blender',
+        'Blender (Copy)',
+        'Blender (Copy 2)',
+      ]),
+    ).toBe('Blender (Copy 3)');
+  });
+});
+
 describe('copyItem', () => {
   beforeEach(() => {
     jest.mocked(getItemById).mockReset();
     jest.mocked(createItem).mockReset();
+    jest.mocked(getItemsByRoomId).mockReset();
+    jest.mocked(deleteItem).mockReset();
     jest.mocked(getImagesByItemId).mockReset();
     jest.mocked(createItemImage).mockReset();
     jest.mocked(updateItemImagePaths).mockReset();
     jest.mocked(syncItemPrimaryImageColumns).mockReset();
     jest.mocked(FileSystem.copyAsync).mockReset();
     jest.mocked(FileSystem.makeDirectoryAsync).mockReset();
+    jest.mocked(deleteLocalImageIfExists).mockReset();
+    jest.mocked(getItemsByRoomId).mockResolvedValue([sourceItem]);
   });
 
   test('creates a new local item with (Copy) name and copied photo rows', async () => {
@@ -150,6 +192,49 @@ describe('copyItem', () => {
     expect(result.id).toBe(42);
     expect(result.name).toBe('Blender (Copy)');
     expect(result.sheetRowId).toBeNull();
+  });
+
+  test('uses (Copy 2) when (Copy) already exists in the room', async () => {
+    jest.mocked(getItemsByRoomId).mockResolvedValue([
+      sourceItem,
+      { ...createdItem, id: 41, name: 'Blender (Copy)' },
+    ]);
+    jest
+      .mocked(getItemById)
+      .mockResolvedValueOnce(sourceItem)
+      .mockResolvedValueOnce({ ...createdItem, name: 'Blender (Copy 2)' });
+    jest.mocked(createItem).mockResolvedValue({
+      ...createdItem,
+      name: 'Blender (Copy 2)',
+    });
+    jest.mocked(getImagesByItemId).mockResolvedValue([]);
+
+    await copyItem(fakeDatabase, 7, 'file:///houses/Beach/', 'Beach House');
+
+    expect(createItem).toHaveBeenCalledWith(
+      fakeDatabase,
+      expect.objectContaining({ name: 'Blender (Copy 2)' }),
+    );
+  });
+
+  test('rolls back the new item when photo copy fails', async () => {
+    jest.mocked(getItemById).mockResolvedValue(sourceItem);
+    jest.mocked(createItem).mockResolvedValue(createdItem);
+    // First call loads source photos; rollback loads the new item's (empty) photos.
+    jest
+      .mocked(getImagesByItemId)
+      .mockResolvedValueOnce(sourceImages)
+      .mockResolvedValueOnce([]);
+    jest.mocked(FileSystem.copyAsync).mockRejectedValue(new Error('disk full'));
+
+    await expect(
+      copyItem(fakeDatabase, 7, 'file:///houses/Beach/', 'Beach House'),
+    ).rejects.toThrow(/disk full/i);
+
+    expect(deleteItem).toHaveBeenCalledWith(fakeDatabase, 42);
+    expect(deleteLocalImageIfExists).toHaveBeenCalledWith(
+      'file:///houses/Beach/staged-copy.jpg',
+    );
   });
 
   test('throws when the source item is missing', async () => {
