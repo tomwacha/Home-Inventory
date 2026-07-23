@@ -271,6 +271,7 @@ export default function ExportScreen() {
         format: selectedDestination,
         houseName: house.name,
         rows: exportRows,
+        onProgress: setStatusMessage,
       });
 
       setStatusMessage('Share sheet opened. Pick an app to save or send the file.');

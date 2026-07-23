@@ -7,6 +7,9 @@ export const PDF_LANDSCAPE_LETTER_HEIGHT = 612;
 /** How many inventory cards fit on one landscape page (2×2). */
 export const PDF_GRID_ITEMS_PER_PAGE = 4;
 
+/** Max landscape pages per expo-print call (then merge into one PDF). */
+export const PDF_PRINT_CHUNK_MAX_PAGES = 8;
+
 /**
  * Escapes text so it is safe inside an HTML document.
  */
@@ -43,11 +46,40 @@ export type PdfRoomPage =
       item: ExportPdfItemBlock;
     };
 
+/** One page in the finished house PDF, with global numbering metadata. */
+export type PlannedHousePdfPage = {
+  pageNumber: number;
+  roomName: string;
+  roomItemCount: number;
+  isFirstPageOfDocument: boolean;
+  isFirstPageOfRoom: boolean;
+  page: PdfRoomPage;
+};
+
+/**
+ * Counts photos for layout decisions (prefers embedded URIs, else local paths).
+ */
+export function getPdfPhotoCount(item: ExportPdfItemBlock): number {
+  if (item.imageDataUris.length > 0) {
+    return item.imageDataUris.length;
+  }
+
+  if (item.localImagePaths.length > 0) {
+    return item.localImagePaths.length;
+  }
+
+  if (item.photoCount > 0) {
+    return item.photoCount;
+  }
+
+  return item.localImagePath !== null ? 1 : 0;
+}
+
 /**
  * Returns true when an item belongs on its own dedicated photo page.
  */
 export function isMultiPhotoPdfItem(item: ExportPdfItemBlock): boolean {
-  return item.imageDataUris.length >= 2;
+  return getPdfPhotoCount(item) >= 2;
 }
 
 /**
@@ -302,153 +334,190 @@ function buildPdfPageFooterHtml(options: {
 }
 
 /**
- * Builds one room: heading + interleaved grid / multi-photo pages.
+ * Flattens room-sorted items into a globally numbered page list (no Base64 required).
  */
-function buildRoomSectionHtml(options: {
-  roomSection: PdfRoomSection;
-  isFirstRoom: boolean;
+export function planHousePdfDocument(
+  items: ExportPdfItemBlock[],
+): PlannedHousePdfPage[] {
+  if (items.length === 0) {
+    return [];
+  }
+
+  const roomSections = groupItemsByRoom(items);
+  const plannedPages: PlannedHousePdfPage[] = [];
+  let pageNumber = 1;
+
+  for (const roomSection of roomSections) {
+    const roomPages = planRoomPages(roomSection.items);
+
+    for (let pageIndex = 0; pageIndex < roomPages.length; pageIndex += 1) {
+      plannedPages.push({
+        pageNumber,
+        roomName: roomSection.roomName,
+        roomItemCount: roomSection.items.length,
+        isFirstPageOfDocument: pageNumber === 1,
+        isFirstPageOfRoom: pageIndex === 0,
+        page: roomPages[pageIndex],
+      });
+      pageNumber += 1;
+    }
+  }
+
+  return plannedPages;
+}
+
+/**
+ * Splits planned pages into print batches (default 8 pages each).
+ */
+export function chunkPlannedPdfPages(
+  plannedPages: PlannedHousePdfPage[],
+  maxPagesPerChunk: number = PDF_PRINT_CHUNK_MAX_PAGES,
+): PlannedHousePdfPage[][] {
+  return chunkItemsForPdfPages(plannedPages, maxPagesPerChunk);
+}
+
+/**
+ * Renders one planned page (grid or multi-photo) with headers/footer.
+ */
+function buildOnePlannedPageHtml(options: {
+  plannedPage: PlannedHousePdfPage;
   houseName: string;
   houseMetaLine: string;
-  startingPageNumber: number;
   totalPageCount: number;
+  isFirstHtmlPage: boolean;
 }): string {
   const {
-    roomSection,
-    isFirstRoom,
+    plannedPage,
     houseName,
     houseMetaLine,
-    startingPageNumber,
     totalPageCount,
+    isFirstHtmlPage,
   } = options;
-  const plannedPages = planRoomPages(roomSection.items);
 
-  const roomHeaderHtml = `<header class="room-header" data-room-section="true">
-        <h2>${escapeHtml(roomSection.roomName)}</h2>
-        <p class="room-meta">${roomSection.items.length} item(s)</p>
-      </header>`;
+  // Only later pages in this HTML document need a forced page break.
+  const pageBreakStyle = isFirstHtmlPage
+    ? ''
+    : ' style="page-break-before: always;"';
 
-  const pagesHtml = plannedPages
-    .map((page, pageIndex) => {
-      const needsPageBreakBefore = pageIndex > 0 || !isFirstRoom;
-      const pageBreakStyle = needsPageBreakBefore
-        ? ' style="page-break-before: always;"'
-        : '';
-      const pageNumber = startingPageNumber + pageIndex;
-      const roomHeaderForPage = pageIndex === 0 ? roomHeaderHtml : '';
-      const houseHeaderForPage =
-        isFirstRoom && pageIndex === 0
-          ? `<header class="doc-header">
+  const roomHeaderHtml = plannedPage.isFirstPageOfRoom
+    ? `<header class="room-header" data-room-section="true">
+        <h2>${escapeHtml(plannedPage.roomName)}</h2>
+        <p class="room-meta">${plannedPage.roomItemCount} item(s)</p>
+      </header>`
+    : '';
+
+  const houseHeaderHtml = plannedPage.isFirstPageOfDocument
+    ? `<header class="doc-header">
         <h1>${escapeHtml(houseName)} — Home Inventory</h1>
         <p class="meta">${escapeHtml(houseMetaLine)}</p>
       </header>`
-          : '';
-      const pageFooterHtml = buildPdfPageFooterHtml({
-        houseName,
-        roomName: roomSection.roomName,
-        pageNumber,
-        totalPageCount,
-      });
+    : '';
 
-      if (page.kind === 'grid') {
-        const cardsHtml = page.items.map(buildGridItemCardHtml).join('\n');
+  const pageFooterHtml = buildPdfPageFooterHtml({
+    houseName,
+    roomName: plannedPage.roomName,
+    pageNumber: plannedPage.pageNumber,
+    totalPageCount,
+  });
 
-        return `
+  if (plannedPage.page.kind === 'grid') {
+    const cardsHtml = plannedPage.page.items.map(buildGridItemCardHtml).join('\n');
+
+    return `
     <section
       class="pdf-page grid-page"
-      data-pdf-page-number="${pageNumber}"
+      data-pdf-page-number="${plannedPage.pageNumber}"
       data-pdf-grid-page="true"
-      data-room-name="${escapeHtml(roomSection.roomName)}"${pageBreakStyle}>
-      ${houseHeaderForPage}
-      ${roomHeaderForPage}
+      data-room-name="${escapeHtml(plannedPage.roomName)}"${pageBreakStyle}>
+      ${houseHeaderHtml}
+      ${roomHeaderHtml}
       <div class="item-grid">
         ${cardsHtml}
       </div>
       ${pageFooterHtml}
     </section>`;
-      }
-
-      return `
-    <div
-      class="pdf-page photo-sheet-break"
-      data-pdf-page-number="${pageNumber}"${pageBreakStyle}>
-      ${houseHeaderForPage}
-      ${roomHeaderForPage}
-      ${buildMultiPhotoItemPageHtml(page.item)}
-      ${pageFooterHtml}
-    </div>`;
-    })
-    .join('\n');
+  }
 
   return `
-    <section class="room-section" data-pdf-room-section="true">
-      ${pagesHtml}
-    </section>`;
+    <div
+      class="pdf-page photo-sheet-break"
+      data-pdf-page-number="${plannedPage.pageNumber}"${pageBreakStyle}>
+      ${houseHeaderHtml}
+      ${roomHeaderHtml}
+      ${buildMultiPhotoItemPageHtml(plannedPage.page.item)}
+      ${pageFooterHtml}
+    </div>`;
 }
 
 /**
- * Builds landscape Letter HTML: house title/totals, room sections with interleaved
- * 2×2 grids and dedicated multi-photo pages.
+ * Builds body HTML for a slice of planned pages (one print chunk).
+ * Page numbers stay global; house header only on document page 1.
  */
-export function buildInventoryPdfHtml(options: {
+export function buildInventoryPdfHtmlForPlannedPages(options: {
   houseName: string;
-  generatedAtLabel: string;
-  items: ExportPdfItemBlock[];
+  houseMetaLine: string;
+  plannedPages: PlannedHousePdfPage[];
+  totalPageCount: number;
 }): string {
-  const { houseName, generatedAtLabel, items } = options;
-  const roomSections = groupItemsByRoom(items);
-  const totalValueUsd = sumHousePurchaseValueUsd(items);
-  const houseMetaLine = buildHousePdfMetaLine({
-    generatedAtLabel,
-    itemCount: items.length,
-    totalValueUsd,
-  });
-  const totalPageCount =
-    items.length === 0
-      ? 1
-      : roomSections.reduce((pageCount, roomSection) => {
-          return pageCount + planRoomPages(roomSection.items).length;
-        }, 0);
-  let nextPageNumber = 1;
+  const { houseName, houseMetaLine, plannedPages, totalPageCount } = options;
 
-  const roomSectionsHtml = roomSections
-    .map((roomSection, roomIndex) => {
-      const roomPageCount = planRoomPages(roomSection.items).length;
-      const roomHtml = buildRoomSectionHtml({
-        roomSection,
-        isFirstRoom: roomIndex === 0,
-        houseName,
-        houseMetaLine,
-        startingPageNumber: nextPageNumber,
-        totalPageCount,
-      });
-      nextPageNumber += roomPageCount;
+  if (plannedPages.length === 0) {
+    return '';
+  }
 
-      return roomHtml;
+  // Wrap consecutive pages of the same room so existing tests/structure stay intact.
+  const roomGroups: PlannedHousePdfPage[][] = [];
+
+  for (const plannedPage of plannedPages) {
+    const lastGroup = roomGroups[roomGroups.length - 1];
+
+    if (
+      lastGroup !== undefined &&
+      lastGroup[0].roomName === plannedPage.roomName
+    ) {
+      lastGroup.push(plannedPage);
+      continue;
+    }
+
+    roomGroups.push([plannedPage]);
+  }
+
+  let htmlPageIndex = 0;
+
+  const roomSectionsHtml = roomGroups
+    .map((roomGroup) => {
+      const pagesHtml = roomGroup
+        .map((plannedPage) => {
+          const isFirstHtmlPage = htmlPageIndex === 0;
+          htmlPageIndex += 1;
+
+          return buildOnePlannedPageHtml({
+            plannedPage,
+            houseName,
+            houseMetaLine,
+            totalPageCount,
+            isFirstHtmlPage,
+          });
+        })
+        .join('\n');
+
+      return `
+    <section class="room-section" data-pdf-room-section="true">
+      ${pagesHtml}
+    </section>`;
     })
     .join('\n');
 
-  const emptyMessage =
-    items.length === 0
-      ? `<section class="pdf-page" data-pdf-page-number="1">
-      <header class="doc-header">
-        <h1>${escapeHtml(houseName)} — Home Inventory</h1>
-        <p class="meta">${escapeHtml(
-          buildHousePdfMetaLine({
-            generatedAtLabel,
-            itemCount: 0,
-            totalValueUsd: 0,
-          }),
-        )}</p>
-      </header>
-      <p class="empty">No items in this house yet.</p>
-      ${buildPdfPageFooterHtml({
-        houseName,
-        pageNumber: 1,
-        totalPageCount: 1,
-      })}
-    </section>`
-      : '';
+  return roomSectionsHtml;
+}
 
+/**
+ * Wraps body HTML in the shared landscape Letter document shell.
+ */
+function wrapInventoryPdfDocumentHtml(
+  houseName: string,
+  bodyHtml: string,
+): string {
   return `<!DOCTYPE html>
 <html>
   <head>
@@ -593,8 +662,92 @@ export function buildInventoryPdfHtml(options: {
     </style>
   </head>
   <body data-pdf-orientation="landscape-letter">
-    ${emptyMessage}
-    ${roomSectionsHtml}
+    ${bodyHtml}
   </body>
 </html>`;
+}
+
+/**
+ * Builds landscape Letter HTML: house title/totals, room sections with interleaved
+ * 2×2 grids and dedicated multi-photo pages.
+ */
+export function buildInventoryPdfHtml(options: {
+  houseName: string;
+  generatedAtLabel: string;
+  items: ExportPdfItemBlock[];
+}): string {
+  const { houseName, generatedAtLabel, items } = options;
+  const totalValueUsd = sumHousePurchaseValueUsd(items);
+  const houseMetaLine = buildHousePdfMetaLine({
+    generatedAtLabel,
+    itemCount: items.length,
+    totalValueUsd,
+  });
+
+  if (items.length === 0) {
+    const emptyMessage = `<section class="pdf-page" data-pdf-page-number="1">
+      <header class="doc-header">
+        <h1>${escapeHtml(houseName)} — Home Inventory</h1>
+        <p class="meta">${escapeHtml(
+          buildHousePdfMetaLine({
+            generatedAtLabel,
+            itemCount: 0,
+            totalValueUsd: 0,
+          }),
+        )}</p>
+      </header>
+      <p class="empty">No items in this house yet.</p>
+      ${buildPdfPageFooterHtml({
+        houseName,
+        pageNumber: 1,
+        totalPageCount: 1,
+      })}
+    </section>`;
+
+    return wrapInventoryPdfDocumentHtml(houseName, emptyMessage);
+  }
+
+  const plannedPages = planHousePdfDocument(items);
+  const roomSectionsHtml = buildInventoryPdfHtmlForPlannedPages({
+    houseName,
+    houseMetaLine,
+    plannedPages,
+    totalPageCount: plannedPages.length,
+  });
+
+  return wrapInventoryPdfDocumentHtml(houseName, roomSectionsHtml);
+}
+
+/**
+ * Builds a full HTML document for one print chunk (subset of planned pages).
+ */
+export function buildInventoryPdfChunkHtml(options: {
+  houseName: string;
+  generatedAtLabel: string;
+  allItemsForMeta: ExportPdfItemBlock[];
+  plannedPagesChunk: PlannedHousePdfPage[];
+  totalPageCount: number;
+}): string {
+  const {
+    houseName,
+    generatedAtLabel,
+    allItemsForMeta,
+    plannedPagesChunk,
+    totalPageCount,
+  } = options;
+
+  const houseMetaLine = buildHousePdfMetaLine({
+    generatedAtLabel,
+    itemCount: allItemsForMeta.length,
+    totalValueUsd: sumHousePurchaseValueUsd(allItemsForMeta),
+  });
+
+  const bodyHtml = buildInventoryPdfHtmlForPlannedPages({
+    houseName,
+    houseMetaLine,
+    plannedPages: plannedPagesChunk,
+    totalPageCount,
+  });
+
+  return wrapInventoryPdfDocumentHtml(houseName, bodyHtml);
 }
